@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import api from '../../api/axios';
 import AppShell from '../../components/layout/AppShell';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Search, Users, ChevronRight, Loader2, Edit, Power, PowerOff } from 'lucide-react';
+import { Plus, Search, Users, ChevronRight, Loader2, Edit, Power, PowerOff, ChevronLeft } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
 import theme from '../../theme';
@@ -19,16 +19,35 @@ const EmployeeList = () => {
   const [statusFilter, setStatusFilter] = useState('Active');
   const [roleFilter, setRoleFilter] = useState('');
   const [total, setTotal] = useState(0);
+  
+  // Pagination state
+  const [page, setPage] = useState(1);
+  const [limit] = useState(6);
+  const [totalPages, setTotalPages] = useState(0);
 
   const fetchEmployees = useCallback(async () => {
     setLoading(true);
     try {
-      const params = { search, status: statusFilter || undefined, role: roleFilter || undefined };
+      const params = { 
+        search, 
+        status: statusFilter || undefined, 
+        role: roleFilter || undefined,
+        page,
+        limit
+      };
       const { data } = await api.get('/employees', { params });
       setEmployees(data.data.employees);
       setTotal(data.data.total);
-    } catch (_) {}
+      setTotalPages(data.data.totalPages || 1);
+    } catch (_) {
+      // Error handling silent but could be expanded
+    }
     setLoading(false);
+  }, [search, statusFilter, roleFilter, page, limit]);
+
+  // Reset to first page when filters/search change
+  useEffect(() => {
+    setPage(1);
   }, [search, statusFilter, roleFilter]);
 
   useEffect(() => {
@@ -51,6 +70,14 @@ const EmployeeList = () => {
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to change status');
     }
+  };
+
+  const handlePrevPage = () => {
+    if (page > 1) setPage(page - 1);
+  };
+
+  const handleNextPage = () => {
+    if (page < totalPages) setPage(page + 1);
   };
 
   return (
@@ -104,83 +131,141 @@ const EmployeeList = () => {
               <div>No employees found</div>
             </div>
           ) : (
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Employee</th>
-                  <th>Code</th>
-                  <th>Department</th>
-                  <th>Role</th>
-                  <th>Status</th>
-                  <th>Joined</th>
-                  <th style={{ textAlign: 'right' }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {employees.map((emp) => (
-                  <tr key={emp._id} onClick={() => navigate(`/employees/${emp._id}/edit`)} style={{ cursor: 'pointer' }}>
-                    <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <div style={{
-                          width: '36px', height: '36px', borderRadius: '8px',
-                          background: 'linear-gradient(135deg, #2076C7, #1CADA3)',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          overflow: 'hidden', flexShrink: 0,
-                        }}>
-                          {emp.profileImageUrl
-                            ? <img src={emp.profileImageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                            : <span style={{ color: '#fff', fontWeight: 700, fontSize: '0.85rem' }}>{emp.name?.[0]}</span>
-                          }
+            <>
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Employee</th>
+                    <th>Code</th>
+                    <th>Department</th>
+                    <th>Role</th>
+                    <th>Status</th>
+                    <th>Joined</th>
+                    <th style={{ textAlign: 'right' }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {employees.map((emp) => (
+                    <tr key={emp._id} onClick={() => navigate(`/employees/${emp._id}/edit`)} style={{ cursor: 'pointer' }}>
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <div style={{
+                            width: '36px', height: '36px', borderRadius: '8px',
+                            background: 'linear-gradient(135deg, #2076C7, #1CADA3)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            overflow: 'hidden', flexShrink: 0,
+                          }}>
+                            {emp.profileImageUrl
+                              ? <img src={emp.profileImageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                              : <span style={{ color: '#fff', fontWeight: 700, fontSize: '0.85rem' }}>{emp.name?.[0]}</span>
+                            }
+                          </div>
+                          <div>
+                            <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{emp.name}</div>
+                            <div style={{ fontSize: '0.75rem', color: 'var(--color-text-tertiary)' }}>{emp.email}</div>
+                          </div>
                         </div>
-                        <div>
-                          <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{emp.name}</div>
-                          <div style={{ fontSize: '0.75rem', color: 'var(--color-text-tertiary)' }}>{emp.email}</div>
-                        </div>
-                      </div>
-                    </td>
-                    <td><code style={{ fontSize: '0.82rem', background: 'var(--color-surface-alt)', padding: '2px 8px', borderRadius: '5px', fontWeight: 700 }}>{emp.employeeCode}</code></td>
-                    <td style={{ color: 'var(--color-text-secondary)', fontSize: '0.88rem' }}>{emp.department || '—'}</td>
-                    <td><span className="badge" style={getRoleStyle(emp.role)}>{emp.role}</span></td>
-                    <td>
-                      <span className="badge" style={emp.status === 'Active' ? { background: 'rgba(16,185,129,0.1)', color: '#059669' } : { background: 'rgba(239,68,68,0.1)', color: '#DC2626' }}>
-                        <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'currentColor', display: 'inline-block' }}></span>
-                        {emp.status}
-                      </span>
-                    </td>
-                    <td style={{ color: 'var(--color-text-secondary)', fontSize: '0.85rem' }}>
-                      {emp.joiningDate ? new Date(emp.joiningDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}
-                    </td>
-                    <td onClick={(e) => e.stopPropagation()} style={{ textAlign: 'right' }}>
-                      <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-                        <button 
-                          className="btn-secondary" 
-                          style={{ padding: '6px', minWidth: 'auto', background: 'transparent', border: '1px solid var(--color-border)', color: 'var(--color-text-secondary)' }}
-                          onClick={() => navigate(`/employees/${emp._id}/edit`)}
-                          title="Edit"
-                        >
-                          <Edit size={16} />
-                        </button>
-                        {CAN_CREATE.includes(user?.role) && (
+                      </td>
+                      <td><code style={{ fontSize: '0.82rem', background: 'var(--color-surface-alt)', padding: '2px 8px', borderRadius: '5px', fontWeight: 700 }}>{emp.employeeCode}</code></td>
+                      <td style={{ color: 'var(--color-text-secondary)', fontSize: '0.88rem' }}>{emp.department || '—'}</td>
+                      <td><span className="badge" style={getRoleStyle(emp.role)}>{emp.role}</span></td>
+                      <td>
+                        <span className="badge" style={emp.status === 'Active' ? { background: 'rgba(16,185,129,0.1)', color: '#059669' } : { background: 'rgba(239,68,68,0.1)', color: '#DC2626' }}>
+                          <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'currentColor', display: 'inline-block' }}></span>
+                          {emp.status}
+                        </span>
+                      </td>
+                      <td style={{ color: 'var(--color-text-secondary)', fontSize: '0.85rem' }}>
+                        {emp.joiningDate ? new Date(emp.joiningDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}
+                      </td>
+                      <td onClick={(e) => e.stopPropagation()} style={{ textAlign: 'right' }}>
+                        <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
                           <button 
                             className="btn-secondary" 
-                            style={{ 
-                              padding: '6px', minWidth: 'auto', 
-                              background: emp.status === 'Active' ? 'rgba(239,68,68,0.05)' : 'rgba(16,185,129,0.05)', 
-                              border: `1px solid ${emp.status === 'Active' ? 'rgba(239,68,68,0.2)' : 'rgba(16,185,129,0.2)'}`, 
-                              color: emp.status === 'Active' ? '#DC2626' : '#059669' 
-                            }}
-                            onClick={(e) => handleToggleStatus(e, emp)}
-                            title={emp.status === 'Active' ? "Deactivate" : "Activate"}
+                            style={{ padding: '6px', minWidth: 'auto', background: 'transparent', border: '1px solid var(--color-border)', color: 'var(--color-text-secondary)' }}
+                            onClick={() => navigate(`/employees/${emp._id}/edit`)}
+                            title="Edit"
                           >
-                            {emp.status === 'Active' ? <PowerOff size={16} /> : <Power size={16} />}
+                            <Edit size={16} />
                           </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                          {CAN_CREATE.includes(user?.role) && (
+                            <button 
+                              className="btn-secondary" 
+                              style={{ 
+                                padding: '6px', minWidth: 'auto', 
+                                background: emp.status === 'Active' ? 'rgba(239,68,68,0.05)' : 'rgba(16,185,129,0.05)', 
+                                border: `1px solid ${emp.status === 'Active' ? 'rgba(239,68,68,0.2)' : 'rgba(16,185,129,0.2)'}`, 
+                                color: emp.status === 'Active' ? '#DC2626' : '#059669' 
+                              }}
+                              onClick={(e) => handleToggleStatus(e, emp)}
+                              title={emp.status === 'Active' ? "Deactivate" : "Activate"}
+                            >
+                              {emp.status === 'Active' ? <PowerOff size={16} /> : <Power size={16} />}
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              
+              {/* Pagination Controls */}
+              <div style={{ 
+                padding: '16px 20px', 
+                borderTop: '1px solid var(--color-border)', 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'space-between',
+                background: 'var(--color-surface)'
+              }}>
+                <div style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>
+                  Showing {((page - 1) * limit) + 1} - {Math.min(page * limit, total)} of {total} employees
+                </div>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button
+                    className="btn-secondary"
+                    onClick={handlePrevPage}
+                    disabled={page === 1}
+                    style={{ 
+                      padding: '6px 12px', 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: '4px',
+                      opacity: page === 1 ? 0.5 : 1,
+                      cursor: page === 1 ? 'not-allowed' : 'pointer'
+                    }}
+                  >
+                    <ChevronLeft size={16} /> Previous
+                  </button>
+                  <span style={{ 
+                    padding: '6px 16px', 
+                    background: 'var(--color-surface-alt)', 
+                    borderRadius: '6px',
+                    fontSize: '0.9rem',
+                    fontWeight: 500,
+                    color: 'var(--color-text)'
+                  }}>
+                    Page {page} of {totalPages}
+                  </span>
+                  <button
+                    className="btn-secondary"
+                    onClick={handleNextPage}
+                    disabled={page === totalPages}
+                    style={{ 
+                      padding: '6px 12px', 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: '4px',
+                      opacity: page === totalPages ? 0.5 : 1,
+                      cursor: page === totalPages ? 'not-allowed' : 'pointer'
+                    }}
+                  >
+                    Next <ChevronRight size={16} />
+                  </button>
+                </div>
+              </div>
+            </>
           )}
         </div>
         <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
