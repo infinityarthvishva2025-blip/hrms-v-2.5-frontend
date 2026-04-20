@@ -23,9 +23,15 @@ const PayrollDashboard = () => {
     const start = new Date(currYear, currMonth - 1, 21);
     const end = new Date(currYear, currMonth, 20);
     
+    // Convert to local YYYY-MM-DD safely, avoiding toISOString UTC timezone shifts
+    const toLocalISO = (d) => {
+      const offset = d.getTimezoneOffset() * 60000;
+      return (new Date(d.getTime() - offset)).toISOString().split('T')[0];
+    };
+    
     return {
-      startDate: start.toISOString().split('T')[0],
-      endDate: end.toISOString().split('T')[0]
+      startDate: toLocalISO(start),
+      endDate: toLocalISO(end)
     };
   };
 
@@ -43,14 +49,16 @@ const PayrollDashboard = () => {
   const [actionLoading, setActionLoading] = useState(false);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [selectedPayroll, setSelectedPayroll] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(5);
 
   const fetchPayrolls = useCallback(async () => {
     setLoading(true);
     try {
       const { data } = await api.get('/payroll/list', { 
-        params: { startDate: dateRange.startDate, endDate: dateRange.endDate } 
+        params: { startDate: dateRange.startDate, endDate: dateRange.endDate, limit: 1000 } 
       });
-      setPayrolls(Array.isArray(data.data) ? data.data : []);
+      setPayrolls(Array.isArray(data.data) ? data.data : data.data?.payrolls || []);
     } catch (err) {
       toast.error('Failed to fetch payrolls');
     } finally {
@@ -130,12 +138,19 @@ const PayrollDashboard = () => {
     emp.employeeCode.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, itemsPerPage]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredEmployees.length / itemsPerPage));
+  const paginatedEmployees = filteredEmployees.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
   const formatDate = (d) => new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
 
   return (
     <AppShell>
       <div className="page-wrapper fade-in" style={{ padding: '32px', maxWidth: '1600px', margin: '0 auto' }}>
-        <header style={{ marginBottom: '40px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: '20px' }}>
+        <header style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: '20px' }}>
           <div>
             <h1 style={{ fontSize: '2.8rem', fontWeight: 900, letterSpacing: '-0.04em', background: 'linear-gradient(135deg, #1e293b 0%, #334155 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Payroll Engine</h1>
             <p style={{ color: 'var(--color-text-secondary)', fontWeight: 600, fontSize: '1.1rem' }}>Manage accurate salary processing for {employees.length} active employees</p>
@@ -194,12 +209,21 @@ const PayrollDashboard = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredEmployees.map(emp => {
+                  <AnimatePresence mode="popLayout">
+                  {paginatedEmployees.map((emp, index) => {
                     const p = payrolls.find(pay => pay.employeeId === emp._id || pay.employeeId?._id === emp._id);
                     const isProcessed = !!p;
 
                     return (
-                      <tr key={emp._id} style={{ borderBottom: '1px solid #f1f5f9', transition: 'background 0.2s' }} className="hover-row">
+                      <motion.tr 
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        transition={{ duration: 0.2, delay: index * 0.05 }}
+                        key={emp._id} 
+                        style={{ borderBottom: '1px solid #f1f5f9', background: '#fff' }} 
+                        className="hover-row"
+                       >
                         <td style={{ padding: '20px 24px' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                             <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: 'linear-gradient(135deg, #e0e7ff, #f5f3ff)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, color: '#6366f1' }}>
@@ -288,11 +312,69 @@ const PayrollDashboard = () => {
                             )}
                           </div>
                         </td>
-                      </tr>
+                      </motion.tr>
                     );
                   })}
+                  </AnimatePresence>
                 </tbody>
               </table>
+            </div>
+          )}
+          
+          {/* Premium Pagination Controls */}
+          {!loading && filteredEmployees.length > 0 && (
+            <div style={{ padding: '20px 24px', borderTop: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#fff', flexWrap: 'wrap', gap: '16px' }}>
+              <div style={{ color: '#64748b', fontSize: '0.9rem', fontWeight: 600 }}>
+                Showing <span style={{ color: '#1e293b', fontWeight: 800 }}>{(currentPage - 1) * itemsPerPage + 1}</span> to <span style={{ color: '#1e293b', fontWeight: 800 }}>{Math.min(currentPage * itemsPerPage, filteredEmployees.length)}</span> of <span style={{ color: '#1e293b', fontWeight: 800 }}>{filteredEmployees.length}</span> employees
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                <select 
+                  className="input-field" 
+                  value={itemsPerPage} 
+                  onChange={e => setItemsPerPage(Number(e.target.value))}
+                  style={{ padding: '8px 16px', borderRadius: '12px', border: '1px solid #e2e8f0', background: '#f8fafc', fontWeight: 700, color: '#475569', cursor: 'pointer', marginRight: '16px' }}
+                >
+                  <option value={10}>10 / page</option>
+                  <option value={20}>20 / page</option>
+                  <option value={50}>50 / page</option>
+                </select>
+                <button 
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))} 
+                  disabled={currentPage === 1}
+                  style={{ padding: '8px 16px', borderRadius: '12px', border: '1px solid #e2e8f0', background: currentPage === 1 ? '#f8fafc' : '#fff', color: currentPage === 1 ? '#cbd5e1' : '#475569', fontWeight: 700, cursor: currentPage === 1 ? 'not-allowed' : 'pointer', transition: 'all 0.2s', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}
+                >
+                  Prev
+                </button>
+                <div style={{ display: 'flex', gap: '4px' }}>
+                  {[...Array(totalPages)].map((_, i) => {
+                    if (totalPages > 7) {
+                      if (i !== 0 && i !== totalPages - 1 && Math.abs(i + 1 - currentPage) > 1) {
+                         if (i === 1 || i === totalPages - 2) return <span key={i} style={{ padding: '8px', color: '#94a3b8', fontWeight: 800 }}>...</span>;
+                         return null;
+                      }
+                    }
+                    const page = i + 1;
+                    return (
+                      <motion.button 
+                        whileHover={{ y: page !== currentPage ? -2 : 0 }}
+                        whileTap={{ scale: 0.95 }}
+                        key={page}
+                        onClick={() => setCurrentPage(page)}
+                        style={{ width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '12px', border: page === currentPage ? 'none' : '1px solid #e2e8f0', background: page === currentPage ? 'linear-gradient(135deg, #6366f1, #8b5cf6)' : '#fff', color: page === currentPage ? '#fff' : '#475569', fontWeight: 800, cursor: 'pointer', transition: 'all 0.2s', boxShadow: page === currentPage ? '0 8px 16px -4px rgba(99, 102, 241, 0.4)' : '0 1px 2px rgba(0,0,0,0.05)' }}
+                      >
+                        {page}
+                      </motion.button>
+                    );
+                  })}
+                </div>
+                <button 
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} 
+                  disabled={currentPage === totalPages}
+                  style={{ padding: '8px 16px', borderRadius: '12px', border: '1px solid #e2e8f0', background: currentPage === totalPages ? '#f8fafc' : '#fff', color: currentPage === totalPages ? '#cbd5e1' : '#475569', fontWeight: 700, cursor: currentPage === totalPages ? 'not-allowed' : 'pointer', transition: 'all 0.2s', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}
+                >
+                  Next
+                </button>
+              </div>
             </div>
           )}
         </div>

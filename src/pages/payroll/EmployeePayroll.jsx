@@ -12,11 +12,17 @@ const EmployeePayroll = () => {
   const { user } = useAuth();
   const [payrolls, setPayrolls] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(false);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [selectedPayroll, setSelectedPayroll] = useState(null);
+  const toLocalISO = (d) => {
+    const offset = d.getTimezoneOffset() * 60000;
+    return (new Date(d.getTime() - offset)).toISOString().split('T')[0];
+  };
+
   const [dateRange, setDateRange] = useState({
-    startDate: new Date(new Date().getFullYear(), new Date().getMonth() - 3, 1).toISOString().split('T')[0],
-    endDate: new Date().toISOString().split('T')[0]
+    startDate: toLocalISO(new Date(new Date().getFullYear(), new Date().getMonth() - 3, 1)),
+    endDate: toLocalISO(new Date())
   });
 
   const fetchMyPayrolls = useCallback(async () => {
@@ -25,7 +31,7 @@ const EmployeePayroll = () => {
       const { data } = await api.get('/payroll/list', {
         params: { startDate: dateRange.startDate, endDate: dateRange.endDate, self: true }
       }); 
-      setPayrolls(data.data);
+      setPayrolls(Array.isArray(data.data) ? data.data : data.data?.payrolls || []);
     } catch (err) {
       toast.error('Failed to fetch salary history');
     } finally {
@@ -34,6 +40,23 @@ const EmployeePayroll = () => {
   }, [dateRange]);
 
   useEffect(() => { fetchMyPayrolls(); }, [fetchMyPayrolls]);
+
+  const handleGenerate = async () => {
+    setActionLoading(true);
+    try {
+      await api.post('/payroll/generate', {
+        employeeId: user._id,
+        startDate: dateRange.startDate,
+        endDate: dateRange.endDate
+      });
+      toast.success('Payslip generated successfully');
+      fetchMyPayrolls();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to generate playslip');
+    } finally {
+      setActionLoading(false);
+    }
+  };
 
   const downloadSlip = async (id, name) => {
     try {
@@ -50,7 +73,7 @@ const EmployeePayroll = () => {
     }
   };
 
-  const formatDate = (d) => new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+  const formatDate = (d) => new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }).format(new Date(d));
 
   return (
     <AppShell>
@@ -61,11 +84,21 @@ const EmployeePayroll = () => {
             <p style={{ color: 'var(--color-text-secondary)', fontWeight: 600, fontSize: '1.1rem' }}>Access and download your comprehensive salary history</p>
           </div>
           
-          <div className="card" style={{ padding: '12px 24px', display: 'flex', alignItems: 'center', gap: '16px', borderRadius: '20px' }}>
-             <Calendar size={18} color="#6366f1" />
-             <input type="date" className="input-field" value={dateRange.startDate} onChange={e => setDateRange({...dateRange, startDate: e.target.value})} style={{ border: 'none', background: 'transparent', fontWeight: 700, width: '130px' }} />
-             <span style={{ color: '#cbd5e1' }}>to</span>
-             <input type="date" className="input-field" value={dateRange.endDate} onChange={e => setDateRange({...dateRange, endDate: e.target.value})} style={{ border: 'none', background: 'transparent', fontWeight: 700, width: '130px' }} />
+          <div style={{ display: 'flex', gap: '16px', alignItems: 'center', flexWrap: 'wrap' }}>
+            <div className="card" style={{ padding: '12px 24px', display: 'flex', alignItems: 'center', gap: '16px', borderRadius: '20px' }}>
+               <Calendar size={18} color="#6366f1" />
+               <input type="date" className="input-field" value={dateRange.startDate} onChange={e => setDateRange({...dateRange, startDate: e.target.value})} style={{ border: 'none', background: 'transparent', fontWeight: 700, width: '130px' }} />
+               <span style={{ color: '#cbd5e1' }}>to</span>
+               <input type="date" className="input-field" value={dateRange.endDate} onChange={e => setDateRange({...dateRange, endDate: e.target.value})} style={{ border: 'none', background: 'transparent', fontWeight: 700, width: '130px' }} />
+            </div>
+            <button 
+              onClick={handleGenerate} 
+              disabled={actionLoading}
+              className="btn-primary" 
+              style={{ padding: '14px 24px', borderRadius: '20px', display: 'flex', alignItems: 'center', gap: '8px', background: 'linear-gradient(135deg, #10b981, #059669) !important', border: 'none', fontWeight: 700, boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)' }}
+            >
+              {actionLoading ? <Loader2 size={20} className="animate-spin" /> : <TrendingUp size={20} />} Generate Slip
+            </button>
           </div>
         </header>
 
@@ -120,7 +153,7 @@ const EmployeePayroll = () => {
                     <button 
                       onClick={() => downloadSlip(p._id, `${p.month}_${p.year}`)}
                       className="btn-primary" 
-                      style={{ flex: 1.5, borderRadius: '14px', background: '#6366f1', gap: '8px', fontWeight: 700 }}
+                      style={{ flex: 1.5, borderRadius: '14px', background: 'linear-gradient(135deg, #2076C7, #1CADA3)',  gap: '8px', fontWeight: 700 }}
                     >
                       <Download size={18} /> PDF
                     </button>
@@ -128,10 +161,18 @@ const EmployeePayroll = () => {
                 </motion.div>
               ))
             ) : (
-              <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '100px', background: '#f8fafc', borderRadius: '40px', border: '2px dashed #e2e8f0' }}>
+              <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '100px', background: '#f8fafc', borderRadius: '40px', border: '2px dashed #e2e8f0', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                 <DollarSign size={80} style={{ opacity: 0.1, marginBottom: '24px', color: '#6366f1' }} />
-                <h3 style={{ fontSize: '1.8rem', fontWeight: 900, color: '#1e293b' }}>No Payroll Records</h3>
-                <p style={{ color: '#64748b', fontSize: '1.1rem' }}>Salary statements for the selected period will appear here.</p>
+                <h3 style={{ fontSize: '1.8rem', fontWeight: 900, color: '#1e293b', marginBottom: '8px' }}>No Payroll Records</h3>
+                <p style={{ color: '#64748b', fontSize: '1.1rem', marginBottom: '32px' }}>Salary statements for the selected period will appear here.</p>
+                <button 
+                  onClick={handleGenerate} 
+                  disabled={actionLoading}
+                  className="btn-primary" 
+                  style={{ padding: '12px 32px', borderRadius: '16px', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 700, background: '#6366f1' }}
+                >
+                  {actionLoading ? <Loader2 size={18} className="animate-spin" /> : <TrendingUp size={18} />} Generate Now
+                </button>
               </div>
             )}
           </div>
