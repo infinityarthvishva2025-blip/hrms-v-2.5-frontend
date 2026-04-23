@@ -26,6 +26,7 @@ import EmployeePayroll from '../pages/payroll/EmployeePayroll';
 import VideoList from '../pages/gurukul/VideoList';
 import VideoDetail from '../pages/gurukul/VideoDetail';
 import EmployeeAttendance from '../pages/attendance/EmployeeAttendance';
+import AttendanceHistory from '../pages/attendance/AttendanceHistory';
 
 const CAN_CREATE = ['SuperUser', 'HR', 'Director', 'VP', 'GM'];
 const ALL_ROLES = ['SuperUser', 'HR', 'Manager', 'Director', 'VP', 'GM', 'Employee', 'Intern'];
@@ -71,6 +72,10 @@ const AppRouter = () => (
         } />
         <Route path="/attendance/reports" element={
           <ProtectedRoute allowedRoles={MANAGEMENT_PLUS}><DailyReports /></ProtectedRoute>
+        } />
+
+                <Route path="/attendance/correction-history" element={
+          <ProtectedRoute allowedRoles={MANAGEMENT_PLUS}><AttendanceHistory /></ProtectedRoute>
         } />
                 <Route path="/attendance/employee/attendance" element={
           <ProtectedRoute allowedRoles={MANAGEMENT_PLUS}><EmployeeAttendance /></ProtectedRoute>

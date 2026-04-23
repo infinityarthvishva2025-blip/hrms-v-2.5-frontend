@@ -517,3 +517,75 @@ body {
   color: var(--color-text);
   box-shadow: var(--shadow-sm);
 }
+
+/* ══════════════════════════════════════════════════════════════
+   ATTENDANCE ENHANCEMENTS
+   ══════════════════════════════════════════════════════════════ */
+.work-mode-selector {
+  display: flex;
+  gap: 10px;
+  background: var(--color-surface-alt);
+  padding: 6px;
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--color-border);
+  margin-bottom: 20px;
+  width: 100%;
+}
+
+.work-mode-btn {
+  flex: 1;
+  padding: 10px;
+  border-radius: var(--radius-lg);
+  border: none;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-weight: 700;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all var(--transition-base);
+}
+
+.work-mode-btn.active {
+  background: var(--color-surface);
+  color: var(--color-primary);
+  box-shadow: var(--shadow-sm);
+}
+
+.att-tracking-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #FEF3C7;
+  color: #92400E;
+  padding: 12px 20px;
+  border-radius: var(--radius-lg);
+  margin-bottom: 16px;
+  font-size: 0.85rem;
+  border: 1px solid #FDE68A;
+}
+
+.att-tracking-dot {
+  width: 8px;
+  height: 8px;
+  background: #D97706;
+  border-radius: 50%;
+  animation: pulse-tracking 1.5s infinite;
+}
+
+@keyframes pulse-tracking {
+  0%   { transform: scale(1); opacity: 1; }
+  50%  { transform: scale(1.5); opacity: 0.5; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.att-bypass-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #FEE2E2;
+  color: #DC2626;
+  padding: 6px 12px;
+  border-radius: var(--radius-full);
+  font-size: 0.75rem;
+  font-weight: 700;
+}

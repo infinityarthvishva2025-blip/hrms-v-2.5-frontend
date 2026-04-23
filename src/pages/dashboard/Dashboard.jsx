@@ -369,7 +369,7 @@ const Dashboard = () => {
             </div>
             <div>
               <h1 className="greeting-text">
-                {greeting}, <span className="name-highlight">{user?.name?.split(' ')[0]}</span> 👋
+                {greeting}, <span className="name-highlight">{user?.name}</span> 👋
               </h1>
               <p className="date-text">{formatDate(currentTime)}</p>
             </div>

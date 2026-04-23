@@ -1,29 +1,25 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { CalendarDays, Plus, Search, Loader2, XCircle, Clock, CheckCircle, FileText, X } from 'lucide-react';
+import { CalendarDays, Plus, Loader2, XCircle, Clock, CheckCircle, FileText, X, AlertCircle, Calendar } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import AppShell from '../../components/layout/AppShell';
 import { getMyLeaves, cancelLeave } from '../../api/leave.api';
 
 const statusConfig = {
-  Pending: { color: '#F59E0B', bg: '#FEF3C7', icon: Clock },
-  Approved: { color: '#10B981', bg: '#D1FAE5', icon: CheckCircle },
-  Rejected: { color: '#EF4444', bg: '#FEE2E2', icon: XCircle },
-  Cancelled: { color: '#6B7280', bg: '#F3F4F6', icon: FileText },
+  Pending: { color: '#D97706', bg: '#FEF3C7', icon: Clock },
+  Approved: { color: '#059669', bg: '#D1FAE5', icon: CheckCircle },
+  Rejected: { color: '#DC2626', bg: '#FEE2E2', icon: XCircle },
+  Cancelled: { color: '#475569', bg: '#F1F5F9', icon: FileText },
 };
 
 const StatusBadge = ({ status }) => {
   const conf = statusConfig[status] || statusConfig.Pending;
   const Icon = conf.icon;
   return (
-    <div style={{
-      display: 'inline-flex', alignItems: 'center', gap: '6px',
-      padding: '6px 12px', borderRadius: '99px',
-      background: conf.bg, color: conf.color,
-      fontSize: '0.75rem', fontWeight: 700, letterSpacing: '0.02em',
-    }}>
+    <div className="ml-status-badge" style={{ background: conf.bg, color: conf.color }}>
       <Icon size={14} strokeWidth={2.5} />
-      {status}
+      <span>{status}</span>
     </div>
   );
 };
@@ -47,91 +43,53 @@ const CancelModal = ({ leave, onClose, onRefresh }) => {
   };
 
   return (
-    <div style={{
-      position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
-      background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
-      padding: '24px', boxSizing: 'border-box',
-    }}>
-      <div style={{
-        background: '#fff', borderRadius: '24px', width: '100%', maxWidth: '440px',
-        padding: '32px', position: 'relative', boxShadow: '0 24px 48px rgba(0,0,0,0.1)',
-        animation: 'modalSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
-      }}>
-        <button onClick={onClose} style={{
-          position: 'absolute', top: '24px', right: '24px', background: '#F1F5F9',
-          border: 'none', width: '32px', height: '32px', borderRadius: '50%',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          color: '#64748B', cursor: 'pointer', transition: 'all 0.2s',
-        }} onMouseEnter={e => e.currentTarget.style.background = '#E2E8F0'}>
-          <X size={18} />
-        </button>
+    <div className="ml-modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <motion.div
+        initial={{ opacity: 0, y: 20, scale: 0.95 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: 20, scale: 0.95 }}
+        className="ml-modal"
+      >
+        <button onClick={onClose} className="ml-modal-close"><X size={18} /></button>
+        
+        <div className="ml-modal-header">
+          <div className="ml-modal-icon"><AlertCircle size={24} /></div>
+          <h2>Cancel Leave Request</h2>
+          <p>Are you sure you want to cancel this <strong>{leave.leaveType}</strong> leave?</p>
+        </div>
 
-        <h2 style={{ margin: '0 0 8px', fontSize: '1.4rem', color: '#0F172A', fontWeight: 800 }}>
-          Cancel Leave Request
-        </h2>
-        <p style={{ margin: '0 0 24px', color: '#64748B', fontSize: '0.9rem', lineHeight: '1.5' }}>
-          Are you sure you want to cancel this {leave.leaveType} leave?
-        </p>
-
-        <div style={{ marginBottom: '24px' }}>
-          <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#475569', marginBottom: '8px' }}>
-            CANCELLATION REASON (OPTIONAL)
-          </label>
+        <div className="ml-modal-body">
+          <label>CANCELLATION REASON (OPTIONAL)</label>
           <textarea
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             placeholder="Why are you cancelling?"
             rows={3}
-            style={{
-              width: '100%', padding: '12px 16px', borderRadius: '12px',
-              border: '1px solid #E2E8F0', outline: 'none', boxSizing: 'border-box',
-              fontFamily: 'Inter, sans-serif', resize: 'vertical',
-            }}
-            onFocus={e => e.target.style.borderColor = '#2076C7'}
-            onBlur={e => e.target.style.borderColor = '#E2E8F0'}
           />
         </div>
 
-        <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
-          <button onClick={onClose} style={{
-            padding: '12px 20px', borderRadius: '12px', border: '1px solid #E2E8F0',
-            background: '#fff', color: '#64748B', fontWeight: 600, cursor: 'pointer',
-          }}>
-            Keep Leave
-          </button>
-          <button onClick={handleCancel} disabled={loading} style={{
-            padding: '12px 24px', borderRadius: '12px', border: 'none',
-            background: '#EF4444', color: '#fff', fontWeight: 600, cursor: 'pointer',
-            display: 'flex', alignItems: 'center', gap: '8px', opacity: loading ? 0.7 : 1,
-            boxShadow: '0 4px 12px rgba(239, 68, 68, 0.3)',
-          }}>
-            {loading ? <Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} /> : 'Cancel Leave'}
+        <div className="ml-modal-actions">
+          <button onClick={onClose} className="ml-btn-secondary">Keep Leave</button>
+          <button onClick={handleCancel} disabled={loading} className="ml-btn-danger">
+            {loading ? <Loader2 size={18} className="animate-spin" /> : 'Cancel Leave'}
           </button>
         </div>
-      </div>
-      <style>{`
-        @keyframes modalSlideUp {
-          from { opacity: 0; transform: translateY(20px) scale(0.95); }
-          to { opacity: 1; transform: translateY(0) scale(1); }
-        }
-      `}</style>
+      </motion.div>
     </div>
   );
 };
 
-const SummaryCard = ({ title, count, color }) => (
-  <div style={{
-    background: '#fff', padding: '24px', borderRadius: '20px',
-    border: '1px solid #E2E8F0', flex: '1', minWidth: '160px',
-    boxShadow: '0 2px 8px rgba(0,0,0,0.02)', position: 'relative', overflow: 'hidden',
-  }}>
-    <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: color }} />
-    <div style={{ color: '#64748B', fontSize: '0.85rem', fontWeight: 600, textTransform: 'uppercase', marginBottom: '8px' }}>
-      {title}
-    </div>
-    <div style={{ fontSize: '2rem', fontWeight: 800, color: '#0F172A', lineHeight: '1' }}>
-      {count}
+const SummaryCard = ({ title, count, color, icon: Icon }) => (
+  <div className="ml-summary-card">
+    <div className="ml-summary-accent" style={{ background: color }} />
+    <div className="ml-summary-content">
+      <div className="ml-summary-header">
+        <span>{title}</span>
+        <div className="ml-summary-icon" style={{ color: color, background: `${color}15` }}>
+          <Icon size={18} />
+        </div>
+      </div>
+      <div className="ml-summary-count">{count}</div>
     </div>
   </div>
 );
@@ -149,7 +107,6 @@ const MyLeaves = () => {
     try {
       const { data } = await getMyLeaves({ status: filter, limit: 50 });
       setLeaves(data.data.leaves);
-      // Update summary based on the 'All' fetch or just use what backend sends
       if (data.data.summary) {
         setSummary(data.data.summary);
       }
@@ -166,151 +123,680 @@ const MyLeaves = () => {
 
   return (
     <AppShell>
-      <div style={{ maxWidth: '1200px', padding: '0 4px' }}>
+      <div className="ml-page-wrapper fade-in">
         
-        {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '32px', flexWrap: 'wrap', gap: '16px' }}>
-          <div>
-            <h1 style={{ fontSize: '1.8rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
-              My Leaves
-            </h1>
-            <p style={{ color: '#64748B', margin: '4px 0 0 0', fontSize: '0.95rem' }}>
-              Track your leave applications and their status
-            </p>
+        {/* ── Header ── */}
+        <div className="ml-header">
+          <div className="ml-header-text">
+            <h1>My Leaves</h1>
+            <p>Track your leave applications and real-time status</p>
           </div>
-          <button
-            onClick={() => navigate('/leaves/apply')}
-            style={{
-              padding: '12px 24px', borderRadius: '12px', border: 'none',
-              background: 'linear-gradient(135deg, #2076C7, #1CADA3)',
-              color: '#fff', fontSize: '0.95rem', fontWeight: 700, cursor: 'pointer',
-              display: 'flex', alignItems: 'center', gap: '8px',
-              boxShadow: '0 4px 12px rgba(32,118,199,0.3)', transition: 'all 0.2s',
-            }}
-            onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-2px)'}
-            onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
-          >
-            <Plus size={18} strokeWidth={3} />
-            Apply Leave
+          <button onClick={() => navigate('/leaves/apply')} className="ml-btn-primary">
+            <Plus size={18} strokeWidth={2.5} />
+            <span>Apply Leave</span>
           </button>
         </div>
 
-        {/* Stats */}
-        <div style={{ display: 'flex', gap: '16px', marginBottom: '32px', flexWrap: 'wrap' }}>
-          <SummaryCard title="Total Applied" count={summary.total} color="#3B82F6" />
-          <SummaryCard title="Approved" count={summary.approved} color="#10B981" />
-          <SummaryCard title="Pending" count={summary.pending} color="#F59E0B" />
-          <SummaryCard title="Rejected" count={summary.rejected} color="#EF4444" />
+        {/* ── Stats ── */}
+        <div className="ml-stats-grid">
+          <SummaryCard title="Total Applied" count={summary.total} color="#3B82F6" icon={FileText} />
+          <SummaryCard title="Approved" count={summary.approved} color="#10B981" icon={CheckCircle} />
+          <SummaryCard title="Pending" count={summary.pending} color="#F59E0B" icon={Clock} />
+          <SummaryCard title="Rejected" count={summary.rejected} color="#EF4444" icon={XCircle} />
         </div>
 
-        {/* Filters */}
-        <div style={{ display: 'flex', gap: '8px', marginBottom: '24px', borderBottom: '1px solid #E2E8F0', paddingBottom: '16px' }}>
-          {['All', 'Pending', 'Approved', 'Rejected', 'Cancelled'].map((f) => (
-            <button
-              key={f}
-              onClick={() => setFilter(f)}
-              style={{
-                padding: '8px 16px', borderRadius: '99px', border: 'none', cursor: 'pointer',
-                fontSize: '0.85rem', fontWeight: 600, transition: 'all 0.2s',
-                background: filter === f ? '#2076C7' : '#F1F5F9',
-                color: filter === f ? '#fff' : '#64748B',
-              }}
-            >
-              {f}
-            </button>
-          ))}
-        </div>
-
-        {/* List */}
-        {loading ? (
-          <div style={{ padding: '60px', textAlign: 'center', color: '#94A3B8' }}>
-            <Loader2 size={32} style={{ animation: 'spin 1s linear infinite', margin: '0 auto 16px' }} />
-            <p>Loading your leaves...</p>
-          </div>
-        ) : leaves.length === 0 ? (
-          <div style={{
-            background: '#fff', borderRadius: '24px', padding: '60px 24px',
-            textAlign: 'center', border: '1px solid #E2E8F0', color: '#94A3B8',
-          }}>
-            <CalendarDays size={48} style={{ margin: '0 auto 16px', opacity: 0.5 }} />
-            <h3 style={{ margin: '0 0 8px', color: '#475569', fontSize: '1.2rem' }}>No leaves found</h3>
-            <p style={{ margin: 0, fontSize: '0.9rem' }}>You haven't applied for any leaves yet.</p>
-          </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            {leaves.map((leave) => (
-              <div key={leave._id} style={{
-                background: '#fff', borderRadius: '20px', padding: '24px',
-                border: '1px solid #E2E8F0', display: 'flex', alignItems: 'center',
-                justifyContent: 'space-between', gap: '24px', flexWrap: 'wrap',
-                boxShadow: '0 2px 12px rgba(0,0,0,0.03)', transition: 'transform 0.2s',
-              }} onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-2px)'} onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}>
-                
-                <div style={{ display: 'flex', alignItems: 'center', gap: '20px', flex: '1 1 300px' }}>
-                  <div style={{
-                    width: '48px', height: '48px', borderRadius: '14px', background: '#F1F5F9',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#2076C7',
-                  }}>
-                    <CalendarDays size={24} />
-                  </div>
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-                      <span style={{ fontWeight: 800, fontSize: '1.1rem', color: '#0F172A' }}>{leave.leaveType}</span>
-                      {leave.halfDay && (
-                        <span style={{ fontSize: '0.7rem', fontWeight: 700, padding: '2px 8px', background: '#EFF6FF', color: '#3B82F6', borderRadius: '6px', textTransform: 'uppercase' }}>
-                          Half Day ({leave.halfDayPeriod})
-                        </span>
-                      )}
-                    </div>
-                    <div style={{ color: '#64748B', fontSize: '0.85rem' }}>
-                      {formatDate(leave.startDate)} {leave.totalDays > 1 ? `to ${formatDate(leave.endDate)}` : ''} • <span style={{ fontWeight: 600 }}>{leave.totalDays} {leave.totalDays === 1 ? 'day' : 'days'}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div style={{ flex: '1 1 200px', color: '#475569', fontSize: '0.9rem', lineHeight: '1.5' }}>
-                  <div style={{ fontWeight: 600, fontSize: '0.75rem', color: '#94A3B8', textTransform: 'uppercase', marginBottom: '4px' }}>Reason</div>
-                  {leave.reason.length > 60 ? `${leave.reason.substring(0, 60)}...` : leave.reason}
-                </div>
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: '24px', flexShrink: 0 }}>
-                  <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontWeight: 600, fontSize: '0.75rem', color: '#94A3B8', textTransform: 'uppercase', marginBottom: '8px' }}>Status</div>
-                    <StatusBadge status={leave.overallStatus} />
-                  </div>
-                  
-                  <div style={{ width: '40px' }}>
-                    {leave.overallStatus === 'Pending' && (
-                      <button
-                        onClick={() => setCancelLeaveObj(leave)}
-                        title="Cancel Request"
-                        style={{
-                          width: '40px', height: '40px', borderRadius: '12px', border: '1px solid #FEE2E2',
-                          background: '#fff', color: '#EF4444', cursor: 'pointer', display: 'flex',
-                          alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s',
-                        }}
-                        onMouseEnter={e => e.currentTarget.style.background = '#FEE2E2'}
-                        onMouseLeave={e => e.currentTarget.style.background = '#fff'}
-                      >
-                        <XCircle size={20} />
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
+        {/* ── Filters ── */}
+        <div className="ml-filter-scroll">
+          <div className="ml-filters">
+            {['All', 'Pending', 'Approved', 'Rejected', 'Cancelled'].map((f) => (
+              <button
+                key={f}
+                onClick={() => setFilter(f)}
+                className={`ml-filter-btn ${filter === f ? 'active' : ''}`}
+              >
+                {f}
+              </button>
             ))}
           </div>
-        )}
+        </div>
 
+        {/* ── List ── */}
+        <div className="ml-list-container">
+          {loading ? (
+            <div className="ml-empty-state">
+              <Loader2 size={36} className="animate-spin ml-text-primary" />
+              <p>Loading your leaves...</p>
+            </div>
+          ) : leaves.length === 0 ? (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="ml-empty-state">
+              <div className="ml-empty-icon"><CalendarDays size={40} /></div>
+              <h3>No leaves found</h3>
+              <p>You haven't applied for any leaves in this category.</p>
+              {filter !== 'All' && (
+                <button onClick={() => setFilter('All')} className="ml-btn-outline">View All Leaves</button>
+              )}
+            </motion.div>
+          ) : (
+            <div className="ml-leaves-list">
+              <AnimatePresence>
+                {leaves.map((leave, i) => (
+                  <motion.div
+                    key={leave._id}
+                    initial={{ opacity: 0, y: 15 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: i * 0.05 }}
+                    className="ml-leave-card"
+                  >
+                    <div className="ml-card-main">
+                      <div className="ml-card-icon-wrap">
+                        <Calendar size={22} className="ml-card-icon" />
+                      </div>
+                      <div className="ml-card-info">
+                        <div className="ml-card-title-row">
+                          <span className="ml-leave-type">{leave.leaveType}</span>
+                          {leave.halfDay && (
+                            <span className="ml-halfday-badge">Half Day ({leave.halfDayPeriod})</span>
+                          )}
+                        </div>
+                        <div className="ml-leave-dates">
+                          {formatDate(leave.startDate)} {leave.totalDays > 1 && `— ${formatDate(leave.endDate)}`} 
+                          <span className="ml-bullet">•</span> 
+                          <strong>{leave.totalDays} {leave.totalDays === 1 ? 'day' : 'days'}</strong>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="ml-card-reason">
+                      <span className="ml-label">Reason</span>
+                      <p>{leave.reason.length > 50 ? `${leave.reason.substring(0, 50)}...` : leave.reason}</p>
+                    </div>
+
+                    <div className="ml-card-actions">
+                      <div className="ml-status-column">
+                        <span className="ml-label">Status</span>
+                        <StatusBadge status={leave.overallStatus} />
+                      </div>
+                      
+                      {leave.overallStatus === 'Pending' ? (
+                        <button
+                          onClick={() => setCancelLeaveObj(leave)}
+                          className="ml-cancel-icon-btn"
+                          title="Cancel Request"
+                        >
+                          <XCircle size={20} />
+                        </button>
+                      ) : (
+                        <div className="ml-spacer" />
+                      )}
+                    </div>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+            </div>
+          )}
+        </div>
       </div>
       
-      {cancelLeaveObj && (
-        <CancelModal
-          leave={cancelLeaveObj}
-          onClose={() => setCancelLeaveObj(null)}
-          onRefresh={fetchLeaves}
-        />
-      )}
+      <AnimatePresence>
+        {cancelLeaveObj && (
+          <CancelModal
+            leave={cancelLeaveObj}
+            onClose={() => setCancelLeaveObj(null)}
+            onRefresh={fetchLeaves}
+          />
+        )}
+      </AnimatePresence>
+
+      <style>{`
+        /* ── Base Layout ── */
+        .ml-page-wrapper {
+          max-width: 1100px;
+          margin: 0 auto;
+          width: 100%;
+          padding: 0 4px 40px;
+        }
+
+        /* ── Header ── */
+        .ml-header {
+          display: flex;
+          align-items: flex-end;
+          justify-content: space-between;
+          flex-wrap: wrap;
+          gap: 16px;
+          margin-bottom: 32px;
+        }
+
+        .ml-header-text h1 {
+          font-size: clamp(1.6rem, 4vw, 2rem);
+          font-weight: 900;
+          letter-spacing: -0.04em;
+          color: var(--color-text);
+          margin: 0 0 4px 0;
+        }
+
+        .ml-header-text p {
+          color: var(--color-text-secondary);
+          font-size: 0.95rem;
+          margin: 0;
+        }
+
+        .ml-btn-primary {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          padding: 14px 24px;
+          border-radius: var(--radius-xl);
+          border: none;
+          background: var(--gradient-primary);
+          color: #fff;
+          font-size: 0.95rem;
+          font-weight: 700;
+          cursor: pointer;
+          box-shadow: 0 8px 20px rgba(32,118,199,0.25);
+          transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .ml-btn-primary:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 12px 24px rgba(32,118,199,0.35);
+        }
+
+        /* ── Stats ── */
+        .ml-stats-grid {
+          display: grid;
+          grid-template-columns: repeat(4, 1fr);
+          gap: 16px;
+          margin-bottom: 32px;
+        }
+
+        .ml-summary-card {
+          background: var(--color-surface);
+          border-radius: var(--radius-xl);
+          border: 1px solid var(--color-border);
+          padding: 24px;
+          position: relative;
+          overflow: hidden;
+          box-shadow: var(--shadow-sm);
+          transition: box-shadow 0.3s;
+        }
+
+        .ml-summary-card:hover {
+          box-shadow: var(--shadow-md);
+        }
+
+        .ml-summary-accent {
+          position: absolute;
+          top: 0;
+          left: 0;
+          bottom: 0;
+          width: 4px;
+        }
+
+        .ml-summary-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          color: var(--color-text-tertiary);
+          font-size: 0.8rem;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.04em;
+          margin-bottom: 12px;
+        }
+
+        .ml-summary-icon {
+          width: 32px;
+          height: 32px;
+          border-radius: var(--radius-md);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .ml-summary-count {
+          font-size: 2.2rem;
+          font-weight: 900;
+          letter-spacing: -0.02em;
+          color: var(--color-text);
+          line-height: 1;
+        }
+
+        /* ── Filters ── */
+        .ml-filter-scroll {
+          width: 100%;
+          overflow-x: auto;
+          margin-bottom: 24px;
+          padding-bottom: 16px;
+          border-bottom: 1px solid var(--color-border);
+          scrollbar-width: none;
+        }
+        
+        .ml-filter-scroll::-webkit-scrollbar { display: none; }
+
+        .ml-filters {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          min-width: max-content;
+        }
+
+        .ml-filter-btn {
+          padding: 10px 20px;
+          border-radius: 99px;
+          border: none;
+          background: var(--color-surface-alt);
+          color: var(--color-text-secondary);
+          font-size: 0.9rem;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+
+        .ml-filter-btn:hover {
+          background: var(--color-border);
+        }
+
+        .ml-filter-btn.active {
+          background: var(--color-primary);
+          color: #fff;
+          box-shadow: 0 4px 12px rgba(32, 118, 199, 0.25);
+        }
+
+        /* ── List Layout ── */
+        .ml-leaves-list {
+          display: flex;
+          flex-direction: column;
+          gap: 16px;
+        }
+
+        .ml-leave-card {
+          background: var(--color-surface);
+          border-radius: var(--radius-xl);
+          padding: 20px 24px;
+          border: 1px solid var(--color-border);
+          display: flex;
+          align-items: center;
+          gap: 24px;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.02);
+          transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .ml-leave-card:hover {
+          box-shadow: var(--shadow-md);
+          border-color: var(--color-border-dark);
+          transform: translateY(-2px);
+        }
+
+        .ml-card-main {
+          display: flex;
+          align-items: center;
+          gap: 16px;
+          flex: 1.5;
+          min-width: 250px;
+        }
+
+        .ml-card-icon-wrap {
+          width: 48px;
+          height: 48px;
+          border-radius: var(--radius-lg);
+          background: var(--color-primary-light);
+          color: var(--color-primary);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+        }
+
+        .ml-card-title-row {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          flex-wrap: wrap;
+          margin-bottom: 6px;
+        }
+
+        .ml-leave-type {
+          font-weight: 800;
+          font-size: 1.05rem;
+          color: var(--color-text);
+        }
+
+        .ml-halfday-badge {
+          font-size: 0.7rem;
+          font-weight: 700;
+          padding: 2px 8px;
+          background: #EFF6FF;
+          color: #3B82F6;
+          border-radius: 6px;
+          text-transform: uppercase;
+          letter-spacing: 0.02em;
+        }
+
+        .ml-leave-dates {
+          color: var(--color-text-secondary);
+          font-size: 0.85rem;
+        }
+
+        .ml-bullet {
+          margin: 0 6px;
+          opacity: 0.5;
+        }
+
+        .ml-card-reason {
+          flex: 2;
+          color: var(--color-text-secondary);
+          font-size: 0.9rem;
+          line-height: 1.5;
+          min-width: 200px;
+        }
+
+        .ml-label {
+          display: block;
+          font-weight: 700;
+          font-size: 0.7rem;
+          color: var(--color-text-tertiary);
+          text-transform: uppercase;
+          letter-spacing: 0.04em;
+          margin-bottom: 6px;
+        }
+
+        .ml-card-reason p {
+          margin: 0;
+        }
+
+        .ml-card-actions {
+          display: flex;
+          align-items: center;
+          gap: 20px;
+          flex-shrink: 0;
+        }
+
+        .ml-status-column {
+          text-align: right;
+        }
+
+        .ml-status-badge {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          padding: 6px 14px;
+          border-radius: 99px;
+          font-size: 0.8rem;
+          font-weight: 700;
+          letter-spacing: 0.02em;
+        }
+
+        .ml-cancel-icon-btn {
+          width: 44px;
+          height: 44px;
+          border-radius: var(--radius-lg);
+          background: #FFF5F5;
+          color: #EF4444;
+          border: 1px solid #FEE2E2;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+
+        .ml-cancel-icon-btn:hover {
+          background: #FEE2E2;
+          border-color: #FCA5A5;
+          transform: translateY(-2px);
+        }
+
+        .ml-spacer { width: 44px; }
+
+        /* ── Empty State ── */
+        .ml-empty-state {
+          padding: 80px 24px;
+          text-align: center;
+          background: var(--color-surface);
+          border: 1px solid var(--color-border);
+          border-radius: var(--radius-2xl);
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+        }
+
+        .ml-empty-icon {
+          width: 72px;
+          height: 72px;
+          background: var(--color-surface-alt);
+          color: var(--color-text-tertiary);
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          margin-bottom: 20px;
+        }
+
+        .ml-empty-state h3 {
+          margin: 0 0 8px;
+          font-size: 1.25rem;
+          color: var(--color-text);
+        }
+
+        .ml-empty-state p {
+          margin: 0 0 20px;
+          color: var(--color-text-secondary);
+        }
+
+        .ml-btn-outline {
+          padding: 10px 20px;
+          border-radius: 99px;
+          border: 1.5px solid var(--color-border);
+          background: transparent;
+          color: var(--color-text);
+          font-weight: 600;
+          cursor: pointer;
+        }
+
+        /* ── Modals ── */
+        .ml-modal-backdrop {
+          position: fixed;
+          inset: 0;
+          background: rgba(15, 23, 42, 0.4);
+          backdrop-filter: blur(8px);
+          z-index: 1000;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 24px;
+        }
+
+        .ml-modal {
+          background: var(--color-surface);
+          border-radius: var(--radius-2xl);
+          width: 100%;
+          max-width: 440px;
+          padding: 32px;
+          position: relative;
+          box-shadow: var(--shadow-2xl);
+        }
+
+        .ml-modal-close {
+          position: absolute;
+          top: 20px;
+          right: 20px;
+          width: 32px;
+          height: 32px;
+          border-radius: 50%;
+          background: var(--color-surface-alt);
+          border: none;
+          color: var(--color-text-secondary);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+
+        .ml-modal-close:hover {
+          background: var(--color-border);
+          color: var(--color-text);
+        }
+
+        .ml-modal-header {
+          text-align: center;
+          margin-bottom: 24px;
+        }
+
+        .ml-modal-icon {
+          width: 56px;
+          height: 56px;
+          border-radius: 50%;
+          background: #FEE2E2;
+          color: #EF4444;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          margin: 0 auto 16px;
+        }
+
+        .ml-modal-header h2 {
+          margin: 0 0 8px;
+          color: var(--color-text);
+          font-size: 1.4rem;
+          font-weight: 800;
+        }
+
+        .ml-modal-header p {
+          margin: 0;
+          color: var(--color-text-secondary);
+          font-size: 0.95rem;
+        }
+
+        .ml-modal-body label {
+          display: block;
+          font-size: 0.75rem;
+          font-weight: 700;
+          color: var(--color-text-tertiary);
+          margin-bottom: 8px;
+          letter-spacing: 0.04em;
+        }
+
+        .ml-modal-body textarea {
+          width: 100%;
+          padding: 14px 16px;
+          border-radius: var(--radius-xl);
+          border: 1.5px solid var(--color-border);
+          background: var(--color-surface-alt);
+          outline: none;
+          resize: vertical;
+          font-family: inherit;
+          font-size: 0.95rem;
+          transition: all 0.2s;
+          margin-bottom: 32px;
+        }
+
+        .ml-modal-body textarea:focus {
+          border-color: var(--color-primary);
+          background: var(--color-surface);
+        }
+
+        .ml-modal-actions {
+          display: flex;
+          gap: 12px;
+        }
+
+        .ml-modal-actions button {
+          flex: 1;
+          padding: 14px;
+          border-radius: var(--radius-lg);
+          font-weight: 700;
+          font-size: 0.95rem;
+          cursor: pointer;
+          transition: all 0.2s;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .ml-btn-secondary {
+          background: var(--color-surface);
+          border: 1px solid var(--color-border-dark);
+          color: var(--color-text);
+        }
+        .ml-btn-secondary:hover {
+          background: var(--color-surface-alt);
+        }
+
+        .ml-btn-danger {
+          background: #EF4444;
+          border: none;
+          color: #fff;
+          box-shadow: 0 4px 12px rgba(239, 68, 68, 0.2);
+        }
+        .ml-btn-danger:hover:not(:disabled) {
+          background: #DC2626;
+          box-shadow: 0 6px 16px rgba(239, 68, 68, 0.3);
+          transform: translateY(-1px);
+        }
+
+        /* ── Responsive Mobile ── */
+        @media (max-width: 900px) {
+          .ml-stats-grid {
+            grid-template-columns: repeat(2, 1fr);
+          }
+        }
+
+        @media (max-width: 640px) {
+          .ml-page-wrapper {
+            padding: 0 16px 32px;
+          }
+
+          .ml-header {
+            flex-direction: column;
+            align-items: stretch;
+            gap: 20px;
+          }
+
+          .ml-header-text h1 {
+            font-size: 1.8rem;
+          }
+
+          .ml-btn-primary {
+            justify-content: center;
+          }
+
+          .ml-leave-card {
+            flex-direction: column;
+            align-items: flex-start;
+            padding: 20px;
+            gap: 16px;
+          }
+
+          .ml-card-main {
+            width: 100%;
+          }
+
+          .ml-card-reason {
+            width: 100%;
+            padding-top: 12px;
+            border-top: 1px solid var(--color-border);
+          }
+
+          .ml-card-actions {
+            width: 100%;
+            justify-content: space-between;
+            padding-top: 12px;
+            border-top: 1px solid var(--color-border);
+          }
+
+          .ml-status-column {
+            text-align: left;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+          }
+
+          .ml-status-column .ml-label {
+            margin: 0;
+          }
+        }
+      `}</style>
     </AppShell>
   );
 };

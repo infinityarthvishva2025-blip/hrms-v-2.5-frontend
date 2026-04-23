@@ -148,6 +148,12 @@ const AdminAttendance = () => {
                     </div>
                  </div>
 
+                 <div style={{ display: 'flex', gap: '8px', marginBottom: '14px' }}>
+                    <span className={`badge ${r.workMode === 'Field' ? 'status-Coff' : r.workMode === 'WFH' ? 'status-WO' : 'status-AUTO'}`} style={{ fontSize: '0.65rem', padding: '3px 8px' }}>
+                      {r.workMode || 'Office'}
+                    </span>
+                 </div>
+
                  <div style={{ display: 'flex', gap: '20px', marginBottom: '16px' }}>
                     <div>
                       <p style={{ fontSize: '0.7rem', color: 'var(--color-text-tertiary)', marginBottom: '4px', fontWeight: 600 }}>CHECK IN</p>
@@ -204,6 +210,7 @@ const AdminAttendance = () => {
                 <tr>
                   <th>Employee</th>
                   <th>Date</th>
+                  <th>Mode</th>
                   <th>In / Out</th>
                   <th>Report</th>
                   <th>Status</th>
@@ -212,7 +219,7 @@ const AdminAttendance = () => {
               </thead>
               <tbody>
                 {filteredRecords.length === 0 ? (
-                  <tr><td colSpan={6} style={{ textAlign: 'center', padding: '48px', color: 'var(--color-text-tertiary)' }}>No reports found</td></tr>
+                  <tr><td colSpan={7} style={{ textAlign: 'center', padding: '48px', color: 'var(--color-text-tertiary)' }}>No reports found</td></tr>
                 ) : filteredRecords.map((r) => (
                   <tr key={r._id}>
                     <td>
@@ -228,6 +235,11 @@ const AdminAttendance = () => {
                     </td>
                     <td style={{ fontSize: '0.9rem', fontWeight: 600 }}>
                       {new Date(r.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                    </td>
+                    <td>
+                      <span className={`badge ${r.workMode === 'Field' ? 'status-Coff' : r.workMode === 'WFH' ? 'status-WO' : 'status-AUTO'}`} style={{ fontSize: '0.7rem' }}>
+                        {r.workMode || 'Office'}
+                      </span>
                     </td>
                     <td>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
