@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../api/axios';
 import toast from 'react-hot-toast';
@@ -111,9 +111,14 @@ const CameraPermissionBanner = ({ onClose }) => (
   </motion.div>
 );
 
+/* ── Bypass user fixed coordinates ── */
+const BYPASS_LAT = 18.534202;
+const BYPASS_LNG = 73.839556;
+const BYPASS_CODE = 'IA00117';
+
 const AttendancePage = () => {
   const { user, refreshProfile } = useAuth();
-  const isBypassUser = user?.employeeCode === 'IA00117';
+  const isBypassUser = user?.employeeCode === BYPASS_CODE;
 
   const [todayRecord, setTodayRecord]         = useState(null);
   const [loading, setLoading]                 = useState(true);
@@ -145,7 +150,9 @@ const AttendancePage = () => {
   const videoRef = useRef();
   const detectionIntervalRef = useRef(null);
   const autoVerifyTimerRef = useRef(null);
-  const verifyLockRef = useRef(false); // prevent double-invoke
+  const verifyLockRef = useRef(false);        // prevent double-invoke
+  const faceOpRef = useRef(null);             // mirror of faceOp state — always fresh in closures
+  const handleVerifyFaceFnRef = useRef(null); // always-fresh fn ref so stale intervals call latest ver
 
   /* ── Face Models ── */
   const loadModels = async () => {
@@ -250,7 +257,7 @@ const AttendancePage = () => {
                   clearInterval(autoVerifyTimerRef.current);
                   autoVerifyTimerRef.current = null;
                   setAutoVerifyCountdown(null);
-                  handleVerifyFaceAndProceed();
+                  handleVerifyFaceFnRef.current?.();
                 }
               }, 1000);
             }
@@ -285,6 +292,12 @@ const AttendancePage = () => {
   const handleVerifyFaceAndProceed = async () => {
     if (!videoRef.current || verifyLockRef.current) return;
     verifyLockRef.current = true;
+    // ✅ DEFINITIVE FIX: read from faceOpRef — a mutable ref that is ALWAYS
+    // updated synchronously (not async like setState). This is immune to:
+    //   1. Stale closures (interval callbacks holding old function refs)
+    //   2. React batching delays (setState is async, ref writes are sync)
+    //   3. Re-render timing (ref reads are always current-cycle)
+    const op = faceOpRef.current;
     stopFaceDetectionLoop();
 
     setVerifyingFace(true);
@@ -310,12 +323,14 @@ const AttendancePage = () => {
         setVerifyStatus('fail');
         verifyLockRef.current = false;
         setVerifyingFace(false);
-        // Restart scanning
         setTimeout(() => { startFaceDetectionLoop(); }, 1500);
         return;
       }
 
-      const dist = faceapi.euclideanDistance(detection.descriptor, new Float32Array(user.faceDescriptor));
+      const dist = faceapi.euclideanDistance(
+        detection.descriptor,
+        new Float32Array(user.faceDescriptor)
+      );
 
       if (dist > 0.6) {
         toast.error('Face mismatch. Please try again.');
@@ -331,13 +346,20 @@ const AttendancePage = () => {
 
       setVerifyStatus('success');
       toast.success('Identity Verified ✓');
-      await new Promise(r => setTimeout(r, 800)); // brief success flash
+      await new Promise(r => setTimeout(r, 800));
+
+      // ✅ Use local `op` — NOT the possibly-stale `faceOp` state
       setShowFaceModal(false);
       stopVideo();
-      if (faceOp === 'checkin') await proceedWithCheckIn();
-      else if (faceOp === 'checkout') setShowReportModal(true);
+
+      if (op === 'checkin') {
+        await proceedWithCheckIn();
+      } else if (op === 'checkout') {
+        setShowReportModal(true);
+      }
     } catch (err) {
-      toast.error('Face verification failed. Try again.');
+      console.error('[FaceVerify] error:', err);
+      toast.error('Face verification failed. Please try again.');
       setVerifyStatus('fail');
       verifyLockRef.current = false;
       setTimeout(() => {
@@ -348,6 +370,9 @@ const AttendancePage = () => {
       setVerifyingFace(false);
     }
   };
+  // ✅ Keep the fn-ref in sync on every render so interval closures always
+  // dispatch to the latest version of handleVerifyFaceAndProceed.
+  handleVerifyFaceFnRef.current = handleVerifyFaceAndProceed;
 
   /* ── Cleanup on unmount ── */
   useEffect(() => {
@@ -439,11 +464,15 @@ const AttendancePage = () => {
       setTodayRecord(data.data.record);
       if (data.data.office) {
         setOfficeSettings(data.data.office);
-        fetchGeo(data.data.office);
+        if (!isBypassUser) fetchGeo(data.data.office);
       }
-    } catch (_) {}
-    setLoading(false);
-  }, [fetchGeo]);
+    } catch (err) {
+      console.error('[fetchToday] failed:', err);
+      // Don't show a toast for background refreshes — only on first load
+    } finally {
+      setLoading(false);
+    }
+  }, [fetchGeo, isBypassUser]);
 
   const fetchManagement = useCallback(async () => {
     try {
@@ -465,6 +494,8 @@ const AttendancePage = () => {
     if (!user.faceDescriptor?.length) { toast.error('Register Face ID from Profile first!'); return; }
     const ok = await loadModels();
     if (!ok) return;
+    // ✅ Write ref FIRST (sync), then setState (async) — ref is what matters
+    faceOpRef.current = 'checkin';
     setFaceOp('checkin');
     setVerifyStatus('idle');
     setShowFaceModal(true);
@@ -474,36 +505,48 @@ const AttendancePage = () => {
   const proceedWithCheckIn = async () => {
     setActionLoading(true);
     try {
-      await api.post('/attendance/check-in', {
-        latitude: coords?.latitude ?? null,
-        longitude: coords?.longitude ?? null,
-        workMode,
-      });
+      // ✅ FIX: bypass user always gets fixed office coordinates
+      const latitude  = isBypassUser ? BYPASS_LAT : (coords?.latitude  ?? null);
+      const longitude = isBypassUser ? BYPASS_LNG : (coords?.longitude ?? null);
+      await api.post('/attendance/check-in', { latitude, longitude, workMode });
       toast.success('Checked In Successfully! 🎉');
-      fetchToday();
+      await fetchToday();
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Check-in failed');
-    } finally { setActionLoading(false); }
+      const msg = err.response?.data?.message || 'Check-in failed. Please try again.';
+      toast.error(msg);
+      // Reset lock so user can retry without page reload
+      verifyLockRef.current = false;
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   const handleCheckOutSubmit = async () => {
-    if (!reportData.todayWork.trim()) { toast.error("Describe today's work first"); return; }
+    if (!reportData.todayWork.trim()) {
+      toast.error("Please describe today's work before checking out.");
+      return;
+    }
     setActionLoading(true);
     try {
+      // ✅ FIX: bypass user always gets fixed office coordinates
+      const latitude  = isBypassUser ? BYPASS_LAT : (coords?.latitude  ?? null);
+      const longitude = isBypassUser ? BYPASS_LNG : (coords?.longitude ?? null);
       const { data } = await api.post('/attendance/check-out', {
-        latitude: coords?.latitude ?? null,
-        longitude: coords?.longitude ?? null,
+        latitude,
+        longitude,
         ...reportData,
       });
       const { overtimeMinutes, shortfallMinutes } = data.data;
-      if (overtimeMinutes > 0) toast.success(`Checked out! Overtime: ${overtimeMinutes}m`);
+      if (overtimeMinutes > 0)       toast.success(`Checked out! Overtime: ${overtimeMinutes}m 🚀`);
       else if (shortfallMinutes > 0) toast(`Checked out ${shortfallMinutes}m early`, { icon: '⚠️' });
-      else toast.success('Checked Out Successfully!');
+      else                           toast.success('Checked Out Successfully! 👋');
       setShowReportModal(false);
-      fetchToday();
+      await fetchToday();
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Check-out failed');
-    } finally { setActionLoading(false); }
+      toast.error(err.response?.data?.message || 'Check-out failed. Please try again.');
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   const toggleParticipant = (id) =>
@@ -514,12 +557,22 @@ const AttendancePage = () => {
         : [...p.reportParticipants, id],
     }));
 
-  const isCheckedIn  = !!todayRecord?.inTime;
-  const isCheckedOut = !!todayRecord?.outTime;
+  const isCheckedIn     = !!todayRecord?.inTime;
+  const isCheckedOut    = !!todayRecord?.outTime;
   const currentWorkMode = todayRecord?.workMode || workMode;
-  
-  const fmtT = (s) => s ? new Date(s).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }) : '—';
-  const canAct = (isBypassUser || currentWorkMode !== 'Office' || geoStatus === 'valid') && !actionLoading && (isBypassUser || currentWorkMode !== 'Office' || coords);
+
+  const fmtT = useCallback(
+    (s) => s ? new Date(s).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }) : '—',
+    []
+  );
+
+  // ✅ useMemo prevents recomputing on every keystroke / animation frame
+  const canAct = useMemo(() => {
+    if (actionLoading) return false;
+    if (isBypassUser)  return true;
+    if (currentWorkMode !== 'Office') return true;
+    return geoStatus === 'valid' && !!coords;
+  }, [actionLoading, isBypassUser, currentWorkMode, geoStatus, coords]);
 
   /* ── Periodic tracking for Field mode ── */
   useEffect(() => {
@@ -767,6 +820,8 @@ const AttendancePage = () => {
                         if (!user.faceDescriptor?.length) { toast.error('Face ID not registered!'); return; }
                         const ok = await loadModels();
                         if (!ok) return;
+                        // ✅ Write ref FIRST (sync), then setState (async)
+                        faceOpRef.current = 'checkout';
                         setFaceOp('checkout');
                         setVerifyStatus('idle');
                         setShowFaceModal(true);
@@ -1557,7 +1612,7 @@ const AttendancePage = () => {
         }
 
         .att-action-btn {
-          padding: 16px 48px;
+          padding: 16px 40px;
           border-radius: var(--radius-xl);
           border: none;
           font-size: 1rem;
@@ -1569,10 +1624,13 @@ const AttendancePage = () => {
           cursor: pointer;
           font-family: inherit;
           letter-spacing: -0.02em;
-          min-width: 230px;
+          width: 100%;
+          max-width: 340px;
           justify-content: center;
           position: relative;
           overflow: hidden;
+          touch-action: manipulation;
+          min-height: 54px;
         }
 
         .att-action-btn::after {
@@ -1871,19 +1929,24 @@ const AttendancePage = () => {
         .att-modal-actions button { flex: 1; }
 
         /* ─── Face Modal ── */
+        /* ─── Face Modal ─── */
         .att-face-modal {
           position: relative;
           background: var(--color-surface);
           border-radius: var(--radius-2xl);
           width: 100%;
-          max-width: 400px;
+          max-width: 420px;
           padding: 28px 28px 24px;
           text-align: center;
           box-shadow:
             0 32px 80px rgba(0,0,0,0.22),
             0 8px 24px rgba(0,0,0,0.08),
             inset 0 1px 0 rgba(255,255,255,0.8);
-          overflow: hidden;
+          /* ✅ FIX: prevent overflow and ensure it can scroll on very small screens */
+          max-height: 95dvh;
+          overflow-y: auto;
+          margin: auto;
+          overscroll-behavior: contain;
         }
 
         .att-face-close {
@@ -2092,6 +2155,7 @@ const AttendancePage = () => {
         .att-face-actions button { flex: 1; }
 
         /* ─── Responsive ── */
+        /* ─── Responsive ─── */
         @media (max-width: 900px) {
           .att-grid {
             grid-template-columns: 1fr;
@@ -2108,7 +2172,7 @@ const AttendancePage = () => {
           }
 
           .att-hero-card {
-            min-height: 320px;
+            min-height: 300px;
           }
         }
 
@@ -2122,10 +2186,10 @@ const AttendancePage = () => {
             margin-bottom: 20px;
           }
 
-          .att-title { font-size: 1.5rem; }
+          .att-title { font-size: 1.4rem; }
 
           .att-action-btn {
-            width: 100%;
+            max-width: 100%;
             padding: 15px 24px;
           }
 
@@ -2140,12 +2204,16 @@ const AttendancePage = () => {
             border-radius: var(--radius-xl);
           }
 
+          .att-modal { max-width: 100%; }
+          .att-face-modal {
+            max-width: 100%;
+            padding: 22px 18px 20px;
+          }
+
           .att-modal-header { padding: 18px; }
           .att-modal-body   { padding: 16px 18px 20px; }
 
-          .att-modal-actions {
-            flex-direction: column-reverse;
-          }
+          .att-modal-actions { flex-direction: column-reverse; }
 
           .att-side-panel {
             grid-template-columns: 1fr;
@@ -2155,24 +2223,28 @@ const AttendancePage = () => {
             grid-column: span 1;
           }
 
-          .att-face-modal {
-            padding: 24px 20px 20px;
-          }
-
+          /* ✅ Modal always centered on mobile — even with keyboard open */
           .att-modal-backdrop {
-            padding: 16px;
-            align-items: center; /* keep centered on mobile */
+            padding: 12px;
+            align-items: center;
+            justify-content: center;
           }
 
-          .att-face-modal {
-            max-width: 100%;
-            border-radius: var(--radius-xl); /* uniform rounded corners on mobile */
+          .work-mode-btn {
+            min-height: 44px; /* WCAG touch target */
+            font-size: 0.8rem;
+          }
+
+          .att-camera-ring {
+            width: clamp(150px, 60vw, 220px);
+            height: clamp(150px, 60vw, 220px);
           }
         }
 
         @media (max-width: 380px) {
           .att-header-eyebrow { display: none; }
           .att-bypass-badge span:last-child { display: none; }
+          .att-action-btn { font-size: 0.9rem; }
         }
       `}</style>
     </AppShell>
