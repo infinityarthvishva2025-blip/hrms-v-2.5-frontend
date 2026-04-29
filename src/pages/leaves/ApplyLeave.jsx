@@ -33,11 +33,15 @@ function useOutsideClick(ref, callback) {
 }
 
 const ApplyLeave = () => {
-  const { user } = useAuth();
+  const { user, refreshProfile } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    refreshProfile();
+  }, [refreshProfile]);
 
   const [form, setForm] = useState({
     leaveType: '',
