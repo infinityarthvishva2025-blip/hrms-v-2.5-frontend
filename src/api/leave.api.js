@@ -29,3 +29,6 @@ export const cancelLeave = (id, reason = '') =>
 
 // ── STATS ──
 export const getLeaveStats = () => api.get('/leaves/stats');
+
+// ── LEAVE HISTORY ──
+export const getLeaveHistory = () => api.get('/leaves/history');

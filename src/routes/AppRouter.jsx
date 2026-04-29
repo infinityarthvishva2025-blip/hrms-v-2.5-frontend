@@ -15,6 +15,7 @@ import EditEmployee from '../pages/employees/EditEmployee';
 import ProfilePage from '../pages/profile/ProfilePage';
 import MyLeaves from '../pages/leaves/MyLeaves';
 import ApplyLeave from '../pages/leaves/ApplyLeave';
+import LeaveBalanceHistory from '../pages/leaves/LeaveBalanceHistory';
 import LeaveApproval from '../pages/leaves/LeaveApproval';
 import LeaveDashboard from '../pages/leaves/LeaveDashboard';
 import Announcements from '../pages/announcements/Announcements';
@@ -90,6 +91,9 @@ const AppRouter = () => (
         } />
         <Route path="/leaves/apply" element={
           <ProtectedRoute allowedRoles={ALL_ROLES}><ApplyLeave /></ProtectedRoute>
+        } />
+        <Route path="/leaves/history" element={
+          <ProtectedRoute allowedRoles={ALL_ROLES}><LeaveBalanceHistory /></ProtectedRoute>
         } />
         <Route path="/leave-approvals" element={
           <ProtectedRoute allowedRoles={MANAGEMENT_PLUS}><LeaveApproval /></ProtectedRoute>

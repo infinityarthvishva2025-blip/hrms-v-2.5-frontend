@@ -147,6 +147,7 @@ const styles = {
     alignItems: 'center',
     gap: '16px',
     padding: '10px 12px',
+   
     borderRadius: '12px',
     cursor: 'pointer',
     position: 'relative',

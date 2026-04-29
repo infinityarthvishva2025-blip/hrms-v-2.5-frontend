@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { CalendarDays, Plus, Loader2, XCircle, Clock, CheckCircle, FileText, X, AlertCircle, Calendar } from 'lucide-react';
+import { CalendarDays, Plus, Loader2, XCircle, Clock, CheckCircle, FileText, X, AlertCircle, Calendar, History } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import AppShell from '../../components/layout/AppShell';
 import { getMyLeaves, cancelLeave } from '../../api/leave.api';
@@ -131,10 +131,16 @@ const MyLeaves = () => {
             <h1>My Leaves</h1>
             <p>Track your leave applications and real-time status</p>
           </div>
-          <button onClick={() => navigate('/leaves/apply')} className="ml-btn-primary">
-            <Plus size={18} strokeWidth={2.5} />
-            <span>Apply Leave</span>
-          </button>
+          <div className="ml-header-actions">
+            <button onClick={() => navigate('/leaves/history')} className="ml-btn-secondary-outline">
+              <History size={18} />
+              <span>Leave History</span>
+            </button>
+            <button onClick={() => navigate('/leaves/apply')} className="ml-btn-primary">
+              <Plus size={18} strokeWidth={2.5} />
+              <span>Apply Leave</span>
+            </button>
+          </div>
         </div>
 
         {/* ── Stats ── */}
@@ -299,6 +305,34 @@ const MyLeaves = () => {
         .ml-btn-primary:hover {
           transform: translateY(-2px);
           box-shadow: 0 12px 24px rgba(32,118,199,0.35);
+        }
+
+        .ml-header-actions {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+        }
+
+        .ml-btn-secondary-outline {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          padding: 13px 20px;
+          border-radius: var(--radius-xl);
+          border: 1.5px solid var(--color-border);
+          background: var(--color-surface);
+          color: var(--color-text-secondary);
+          font-size: 0.95rem;
+          font-weight: 700;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+
+        .ml-btn-secondary-outline:hover {
+          background: var(--color-surface-alt);
+          border-color: var(--color-border-dark);
+          color: var(--color-primary);
+          transform: translateY(-1px);
         }
 
         /* ── Stats ── */
