@@ -1,16 +1,25 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
-  ChevronLeft, History, TrendingUp, TrendingDown, RefreshCw, ArrowRightLeft, 
-  Calendar, Info, Loader2, Search, Filter, AlertCircle
+import {
+  ChevronLeft,
+  TrendingUp,
+  TrendingDown,
+  RefreshCw,
+  ArrowRightLeft,
+  Calendar,
+  Search,
+  Filter,
+  AlertCircle,
+  Loader2
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import AppShell from '../../components/layout/AppShell';
 import { getLeaveHistory } from '../../api/leave.api';
 import toast from 'react-hot-toast';
 
 const LeaveBalanceHistory = () => {
   const navigate = useNavigate();
+
   const [loading, setLoading] = useState(true);
   const [history, setHistory] = useState([]);
   const [filter, setFilter] = useState('All');
@@ -24,7 +33,7 @@ const LeaveBalanceHistory = () => {
     try {
       setLoading(true);
       const res = await getLeaveHistory();
-      setHistory(res.data.data);
+      setHistory(res.data.data || []);
     } catch (err) {
       toast.error('Failed to fetch leave history');
     } finally {
@@ -32,172 +41,211 @@ const LeaveBalanceHistory = () => {
     }
   };
 
-  const filteredHistory = history.filter(item => {
-    const matchesFilter = filter === 'All' || item.type === filter;
-    const matchesSearch = item.remarks?.toLowerCase().includes(search.toLowerCase()) || 
-                          item.leaveType?.toLowerCase().includes(search.toLowerCase());
-    return matchesFilter && matchesSearch;
-  });
+  // ✅ Filtering
+  const filteredHistory = useMemo(() => {
+    return history.filter((item) => {
+      const matchesFilter = filter === 'All' || item.type === filter;
+      const matchesSearch =
+        item.remarks?.toLowerCase().includes(search.toLowerCase()) ||
+        item.leaveType?.toLowerCase().includes(search.toLowerCase());
+
+      return matchesFilter && matchesSearch;
+    });
+  }, [history, filter, search]);
+
+  // ✅ Summary Stats
+  const stats = useMemo(() => {
+    let accrual = 0;
+    let deduction = 0;
+
+    history.forEach((item) => {
+      if (item.type === 'Accrual' || item.type === 'CarryOver') {
+        accrual += item.amount;
+      } else {
+        deduction += item.amount;
+      }
+    });
+
+    return {
+      accrual,
+      deduction,
+      net: accrual - deduction
+    };
+  }, [history]);
 
   const getIcon = (type) => {
     switch (type) {
-      case 'Accrual': return <TrendingUp size={18} className="text-emerald-500" />;
-      case 'Deduction': return <TrendingDown size={18} className="text-rose-500" />;
-      case 'Reset': return <RefreshCw size={18} className="text-amber-500" />;
-      case 'CarryOver': return <ArrowRightLeft size={18} className="text-indigo-500" />;
-      default: return <History size={18} className="text-slate-500" />;
+      case 'Accrual':
+        return <TrendingUp size={16} />;
+      case 'Deduction':
+        return <TrendingDown size={16} />;
+      case 'Reset':
+        return <RefreshCw size={16} />;
+      case 'CarryOver':
+        return <ArrowRightLeft size={16} />;
+      default:
+        return null;
     }
   };
 
-  const getBgColor = (type) => {
+  const getBadgeClass = (type) => {
     switch (type) {
-      case 'Accrual': return 'bg-emerald-50 text-emerald-700 border-emerald-100';
-      case 'Deduction': return 'bg-rose-50 text-rose-700 border-rose-100';
-      case 'Reset': return 'bg-amber-50 text-amber-700 border-amber-100';
-      case 'CarryOver': return 'bg-indigo-50 text-indigo-700 border-indigo-100';
-      default: return 'bg-slate-50 text-slate-700 border-slate-100';
+      case 'Accrual':
+        return 'badge bg-emerald-50 text-emerald-600 border border-emerald-200';
+      case 'Deduction':
+        return 'badge bg-rose-50 text-rose-600 border border-rose-200';
+      case 'Reset':
+        return 'badge bg-amber-50 text-amber-600 border border-amber-200';
+      case 'CarryOver':
+        return 'badge bg-indigo-50 text-indigo-600 border border-indigo-200';
+      default:
+        return 'badge';
     }
   };
 
   return (
     <AppShell>
-      <div className="max-w-5xl mx-auto px-4 py-8 animate-in fade-in duration-500">
-        
-        {/* --- Header --- */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
-          <div className="flex items-center gap-5">
-            <button
-              onClick={() => navigate('/leaves')}
-              className="p-3 bg-white border border-slate-200 rounded-2xl hover:bg-slate-50 transition-all hover:-translate-x-1 shadow-sm"
-            >
-              <ChevronLeft size={22} className="text-slate-600" />
+      <div className="page-wrapper fade-in">
+
+        {/* Header */}
+        <div className="flex justify-between items-center mb-8 flex-wrap gap-4">
+          <div className="flex items-center gap-4">
+            <button onClick={() => navigate('/leaves')} className="btn-icon">
+              <ChevronLeft size={20} />
             </button>
             <div>
-              <h1 className="text-3xl font-black tracking-tight text-slate-900">Leave Balance History</h1>
-              <p className="text-slate-500 font-medium">Track every credit, deduction, and carry-over of your leaves</p>
+              <h1 className="text-2xl font-extrabold">Leave History</h1>
+              <p className="text-sm text-slate-500">
+                Track all leave balance transactions
+              </p>
             </div>
           </div>
+        </div>
 
-          <div className="flex items-center gap-3 bg-indigo-50 border border-indigo-100 px-5 py-3 rounded-2xl">
-            <Info size={18} className="text-indigo-600" />
-            <p className="text-sm font-semibold text-indigo-700">
-              New year resets and carry-forward happens every May 1st.
-            </p>
+        {/* Stats */}
+        <div className="grid md:grid-cols-3 gap-4 mb-8">
+          <div className="stat-card">
+            <p className="text-xs text-slate-400">Total Accrual</p>
+            <h2 className="text-2xl font-bold text-emerald-600">
+              +{stats.accrual}
+            </h2>
+          </div>
+
+          <div className="stat-card">
+            <p className="text-xs text-slate-400">Total Deduction</p>
+            <h2 className="text-2xl font-bold text-rose-600">
+              -{stats.deduction}
+            </h2>
+          </div>
+
+          <div className="stat-card">
+            <p className="text-xs text-slate-400">Net Change</p>
+            <h2 className="text-2xl font-bold text-indigo-600">
+              {stats.net}
+            </h2>
           </div>
         </div>
 
-        {/* --- Filters & Search --- */}
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-4 mb-8">
-          <div className="md:col-span-7 relative">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-            <input 
-              type="text" 
-              placeholder="Search by remarks or leave type..."
-              className="w-full pl-12 pr-4 py-4 bg-white border border-slate-200 rounded-2xl focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 transition-all outline-none font-medium"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </div>
-          <div className="md:col-span-5 relative">
-            <Filter className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-            <select
-              className="w-full pl-12 pr-4 py-4 bg-white border border-slate-200 rounded-2xl focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 transition-all outline-none font-medium appearance-none cursor-pointer"
-              value={filter}
-              onChange={(e) => setFilter(e.target.value)}
-            >
-              <option value="All">All Transactions</option>
-              <option value="Accrual">Monthly Accruals</option>
-              <option value="Deduction">Leave Deductions</option>
-              <option value="CarryOver">Carry Forward</option>
-              <option value="Reset">Resets</option>
-            </select>
-          </div>
+        {/* Filters */}
+        <div className="grid md:grid-cols-2 gap-4 mb-6">
+          <input
+            type="text"
+            placeholder="Search..."
+            className="input-field"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+
+          <select
+            className="input-field select-field"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+          >
+            <option value="All">All</option>
+            <option value="Accrual">Accrual</option>
+            <option value="Deduction">Deduction</option>
+            <option value="CarryOver">CarryOver</option>
+            <option value="Reset">Reset</option>
+          </select>
         </div>
 
-        {/* --- History List --- */}
-        <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-sm">
+        {/* Table */}
+        <div className="card overflow-hidden">
+
           {loading ? (
-            <div className="py-20 flex flex-col items-center justify-center gap-4">
-              <Loader2 className="animate-spin text-indigo-500" size={40} />
-              <p className="text-slate-400 font-bold tracking-widest text-xs uppercase">Loading History...</p>
+            <div className="p-10 text-center">
+              <Loader2 className="animate-spin mx-auto mb-3" />
+              <p className="text-sm text-slate-400">Loading...</p>
             </div>
           ) : filteredHistory.length === 0 ? (
-            <div className="py-20 flex flex-col items-center justify-center text-center px-6">
-              <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mb-6">
-                <AlertCircle size={40} className="text-slate-300" />
-              </div>
-              <h3 className="text-xl font-bold text-slate-800 mb-2">No transaction history found</h3>
-              <p className="text-slate-500 max-w-sm">We couldn't find any leave balance records matching your current filters.</p>
+            <div className="p-10 text-center">
+              <AlertCircle className="mx-auto mb-3 text-slate-300" size={40} />
+              <p className="text-slate-500">No records found</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-slate-50/50 border-b border-slate-100">
-                    <th className="px-8 py-5 text-xs font-black text-slate-400 uppercase tracking-widest">Date & Type</th>
-                    <th className="px-8 py-5 text-xs font-black text-slate-400 uppercase tracking-widest">Description</th>
-                    <th className="px-8 py-5 text-xs font-black text-slate-400 uppercase tracking-widest">Adjustment</th>
-                    <th className="px-8 py-5 text-xs font-black text-slate-400 uppercase tracking-widest">New Balance</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {filteredHistory.map((item, idx) => (
-                    <motion.tr 
-                      key={idx}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: idx * 0.05 }}
-                      className="hover:bg-slate-50/50 transition-colors group"
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Type</th>
+                  <th>Description</th>
+                  <th>Change</th>
+                  <th>Balance</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {filteredHistory.map((item, index) => (
+                  <motion.tr
+                    key={index}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                  >
+                    <td>
+                      <div className="flex items-center gap-2">
+                        {getIcon(item.type)}
+                        <span className={getBadgeClass(item.type)}>
+                          {item.type}
+                        </span>
+                      </div>
+                      <div className="text-xs text-slate-400 flex items-center gap-1 mt-1">
+                        <Calendar size={12} />
+                        {new Date(item.timestamp).toLocaleDateString()}
+                      </div>
+                    </td>
+
+                    <td>
+                      <div className="font-medium">{item.remarks}</div>
+                      <div className="text-xs text-slate-400">
+                        {item.leaveType}
+                      </div>
+                    </td>
+
+                    <td
+                      className={
+                        item.type === 'Deduction'
+                          ? 'text-rose-600 font-bold'
+                          : 'text-emerald-600 font-bold'
+                      }
                     >
-                      <td className="px-8 py-6">
-                        <div className="flex items-center gap-4">
-                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center border ${getBgColor(item.type)}`}>
-                            {getIcon(item.type)}
-                          </div>
-                          <div>
-                            <div className="text-slate-900 font-bold">{item.type}</div>
-                            <div className="text-slate-400 text-[11px] font-bold flex items-center gap-1">
-                              <Calendar size={10} />
-                              {new Date(item.timestamp).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
-                            </div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-8 py-6">
-                        <div className="max-w-xs">
-                          <div className="text-slate-700 font-semibold text-sm leading-relaxed">{item.remarks}</div>
-                          <div className="mt-1 text-[10px] font-black uppercase tracking-wider text-slate-400 bg-slate-100 w-fit px-2 py-0.5 rounded-md">
-                            {item.leaveType}
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-8 py-6 text-center">
-                        <div className={`text-lg font-black ${item.type === 'Deduction' || item.type === 'Reset' ? 'text-rose-600' : 'text-emerald-600'}`}>
-                          {item.type === 'Deduction' || item.type === 'Reset' ? '-' : '+'}{item.amount}
-                        </div>
-                        <div className="text-[10px] text-slate-400 font-bold">days</div>
-                      </td>
-                      <td className="px-8 py-6">
-                        <div className="flex items-center gap-3">
-                          <div className="text-slate-400 text-sm font-medium line-through">{item.previousBalance}</div>
-                          <div className="w-1.5 h-1.5 rounded-full bg-slate-200" />
-                          <div className="text-indigo-600 text-lg font-black">{item.newBalance}</div>
-                        </div>
-                      </td>
-                    </motion.tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                      {item.type === 'Deduction' ? '-' : '+'}
+                      {item.amount}
+                    </td>
+
+                    <td>
+                      <span className="font-semibold text-indigo-600">
+                        {item.newBalance}
+                      </span>
+                    </td>
+                  </motion.tr>
+                ))}
+              </tbody>
+            </table>
           )}
         </div>
 
-        {/* --- Footer Note --- */}
-        <div className="mt-10 text-center">
-          <p className="text-slate-400 text-sm font-medium flex items-center justify-center gap-2">
-            <AlertCircle size={16} />
-            Balances are automatically updated based on HR policy. Contact HR for any discrepancies.
-          </p>
+        {/* Footer */}
+        <div className="mt-6 text-center text-xs text-slate-400">
+          Leave balances are automatically updated as per HR policy.
         </div>
       </div>
     </AppShell>

@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { CalendarDays, Plus, Loader2, XCircle, Clock, CheckCircle, FileText, X, AlertCircle, Calendar, History } from 'lucide-react';
+import { CalendarDays, Plus, Loader2, XCircle, Clock, CheckCircle, FileText, X, AlertCircle, Calendar, History, TrendingUp, Info, ChevronRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import AppShell from '../../components/layout/AppShell';
-import { getMyLeaves, cancelLeave } from '../../api/leave.api';
+import { getMyLeaves, cancelLeave, getCompOffBalanceHistory } from '../../api/leave.api';
 
 const statusConfig = {
   Pending: { color: '#D97706', bg: '#FEF3C7', icon: Clock },
@@ -79,8 +79,120 @@ const CancelModal = ({ leave, onClose, onRefresh }) => {
   );
 };
 
-const SummaryCard = ({ title, count, color, icon: Icon }) => (
-  <div className="ml-summary-card">
+const CompOffHistoryModal = ({ onClose }) => {
+  const [history, setHistory] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchHistory = async () => {
+      try {
+        const { data } = await getCompOffBalanceHistory();
+        setHistory(data.data.history || []);
+      } catch (err) {
+        toast.error('Failed to load comp-off history');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchHistory();
+  }, []);
+
+  const formatDate = (d) => d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
+
+  const getStatusStyle = (status) => {
+    switch (status) {
+      case 'Available': return { bg: '#D1FAE5', color: '#059669' };
+      case 'Used': return { bg: '#DBEAFE', color: '#2563EB' };
+      case 'Expired': return { bg: '#FEE2E2', color: '#DC2626' };
+      case 'Deduction': return { bg: '#F1F5F9', color: '#475569' };
+      default: return { bg: '#F3F4F6', color: '#6B7280' };
+    }
+  };
+
+  return (
+    <div className="ml-modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <motion.div
+        initial={{ opacity: 0, x: 100 }}
+        animate={{ opacity: 1, x: 0 }}
+        exit={{ opacity: 0, x: 100 }}
+        className="ml-side-panel"
+      >
+        <div className="ml-side-header">
+          <div className="flex items-center gap-3">
+            <div className="ml-side-icon"><TrendingUp size={20} /></div>
+            <div>
+              <h3>Comp-Off Balance Details</h3>
+              <p>Track your earned and used comp-offs</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="ml-side-close"><X size={20} /></button>
+        </div>
+
+        <div className="ml-side-content">
+          {loading ? (
+            <div className="ml-side-loading">
+              <Loader2 size={32} className="animate-spin" />
+              <p>Fetching records...</p>
+            </div>
+          ) : history.length === 0 ? (
+            <div className="ml-side-empty">
+              <Info size={40} />
+              <p>No comp-off records found</p>
+            </div>
+          ) : (
+            <div className="ml-history-list">
+              {history.map((item, i) => (
+                <motion.div
+                  key={item._id || i}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.05 }}
+                  className="ml-history-item"
+                >
+                  <div className="ml-history-main">
+                    <div className="ml-history-info">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="ml-history-amount">
+                          {item.type === 'Deduction' ? '-' : '+'}{item.amount} Day{item.amount > 1 ? 's' : ''}
+                        </span>
+                        <span className="ml-history-status" style={getStatusStyle(item.status)}>
+                          {item.status}
+                        </span>
+                      </div>
+                      <p className="ml-history-remarks">{item.remarks}</p>
+                    </div>
+                  </div>
+
+                  <div className="ml-history-grid">
+                    <div className="ml-history-col">
+                      <span className="ml-history-label">Earned Date</span>
+                      <span className="ml-history-value">{formatDate(item.earnedDate)}</span>
+                    </div>
+                    {item.type === 'Accrual' && (
+                      <div className="ml-history-col">
+                        <span className="ml-history-label">Expiry Date</span>
+                        <span className="ml-history-value">{formatDate(item.expiryDate)}</span>
+                      </div>
+                    )}
+                    {item.status === 'Used' && (
+                      <div className="ml-history-col">
+                        <span className="ml-history-label">Used Date</span>
+                        <span className="ml-history-value">{formatDate(item.usedDate)}</span>
+                      </div>
+                    )}
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          )}
+        </div>
+      </motion.div>
+    </div>
+  );
+};
+
+const SummaryCard = ({ title, count, color, icon: Icon, onClick, hasAction }) => (
+  <div className={`ml-summary-card ${hasAction ? 'clickable' : ''}`} onClick={onClick}>
     <div className="ml-summary-accent" style={{ background: color }} />
     <div className="ml-summary-content">
       <div className="ml-summary-header">
@@ -89,7 +201,10 @@ const SummaryCard = ({ title, count, color, icon: Icon }) => (
           <Icon size={18} />
         </div>
       </div>
-      <div className="ml-summary-count">{count}</div>
+      <div className="ml-summary-count">
+        {count}
+        {hasAction && <ChevronRight size={20} className="ml-summary-arrow" />}
+      </div>
     </div>
   </div>
 );
@@ -101,6 +216,8 @@ const MyLeaves = () => {
   const [summary, setSummary] = useState({ total: 0, approved: 0, pending: 0, rejected: 0 });
   const [filter, setFilter] = useState('All');
   const [cancelLeaveObj, setCancelLeaveObj] = useState(null);
+  const [showCompOffHistory, setShowCompOffHistory] = useState(false);
+  const [compOffBalance, setCompOffBalance] = useState(0);
 
   const fetchLeaves = useCallback(async () => {
     setLoading(true);
@@ -110,6 +227,10 @@ const MyLeaves = () => {
       if (data.data.summary) {
         setSummary(data.data.summary);
       }
+
+      // Also fetch comp-off balance
+      const res = await getCompOffBalanceHistory();
+      setCompOffBalance(res.data.data.currentBalance || 0);
     } catch (err) {
       toast.error('Failed to load leaves');
     } finally {
@@ -147,8 +268,8 @@ const MyLeaves = () => {
         <div className="ml-stats-grid">
           <SummaryCard title="Total Applied" count={summary.total} color="#3B82F6" icon={FileText} />
           <SummaryCard title="Approved" count={summary.approved} color="#10B981" icon={CheckCircle} />
+          <SummaryCard title="Comp-Off Bal" count={compOffBalance} color="#8B5CF6" icon={TrendingUp} hasAction onClick={() => setShowCompOffHistory(true)} />
           <SummaryCard title="Pending" count={summary.pending} color="#F59E0B" icon={Clock} />
-          <SummaryCard title="Rejected" count={summary.rejected} color="#EF4444" icon={XCircle} />
         </div>
 
         {/* ── Filters ── */}
@@ -249,6 +370,11 @@ const MyLeaves = () => {
             leave={cancelLeaveObj}
             onClose={() => setCancelLeaveObj(null)}
             onRefresh={fetchLeaves}
+          />
+        )}
+        {showCompOffHistory && (
+          <CompOffHistoryModal
+            onClose={() => setShowCompOffHistory(false)}
           />
         )}
       </AnimatePresence>
@@ -769,6 +895,172 @@ const MyLeaves = () => {
           transform: translateY(-1px);
         }
 
+        /* ── Side Panel ── */
+        .ml-side-panel {
+          position: fixed;
+          top: 0;
+          right: 0;
+          bottom: 0;
+          width: 100%;
+          max-width: 480px;
+          background: var(--color-surface);
+          z-index: 1001;
+          display: flex;
+          flex-direction: column;
+          box-shadow: -10px 0 30px rgba(0,0,0,0.1);
+        }
+
+        .ml-side-header {
+          padding: 24px 32px;
+          border-bottom: 1px solid var(--color-border);
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+        }
+
+        .ml-side-icon {
+          width: 44px;
+          height: 44px;
+          border-radius: 12px;
+          background: #F5F3FF;
+          color: #8B5CF6;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .ml-side-header h3 {
+          margin: 0;
+          font-size: 1.25rem;
+          font-weight: 800;
+          color: var(--color-text);
+        }
+
+        .ml-side-header p {
+          margin: 0;
+          font-size: 0.85rem;
+          color: var(--color-text-secondary);
+        }
+
+        .ml-side-close {
+          width: 40px;
+          height: 40px;
+          border-radius: 50%;
+          border: none;
+          background: var(--color-surface-alt);
+          color: var(--color-text-secondary);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+
+        .ml-side-close:hover {
+          background: var(--color-border);
+          color: var(--color-text);
+        }
+
+        .ml-side-content {
+          flex: 1;
+          overflow-y: auto;
+          padding: 32px;
+          background: #F8FAFC;
+        }
+
+        .ml-history-list {
+          display: flex;
+          flex-direction: column;
+          gap: 16px;
+        }
+
+        .ml-history-item {
+          background: #fff;
+          border-radius: 16px;
+          padding: 20px;
+          border: 1px solid var(--color-border);
+          box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+        }
+
+        .ml-history-amount {
+          font-weight: 800;
+          font-size: 1.1rem;
+          color: var(--color-text);
+        }
+
+        .ml-history-status {
+          font-size: 0.7rem;
+          font-weight: 800;
+          padding: 3px 10px;
+          border-radius: 6px;
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+        }
+
+        .ml-history-remarks {
+          margin: 4px 0 0;
+          font-size: 0.85rem;
+          color: var(--color-text-secondary);
+          line-height: 1.4;
+        }
+
+        .ml-history-grid {
+          display: grid;
+          grid-template-columns: repeat(2, 1fr);
+          gap: 16px;
+          margin-top: 20px;
+          padding-top: 16px;
+          border-top: 1px dashed var(--color-border);
+        }
+
+        .ml-history-label {
+          display: block;
+          font-size: 0.7rem;
+          font-weight: 700;
+          color: var(--color-text-tertiary);
+          text-transform: uppercase;
+          margin-bottom: 4px;
+        }
+
+        .ml-history-value {
+          font-size: 0.9rem;
+          font-weight: 600;
+          color: var(--color-text-secondary);
+        }
+
+        .ml-side-loading, .ml-side-empty {
+          height: 100%;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          color: var(--color-text-tertiary);
+          gap: 12px;
+        }
+
+        .ml-summary-card.clickable {
+          cursor: pointer;
+          transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .ml-summary-card.clickable:hover {
+          transform: translateY(-4px);
+          box-shadow: var(--shadow-lg);
+          border-color: #8B5CF6;
+        }
+
+        .ml-summary-arrow {
+          margin-left: auto;
+          opacity: 0.3;
+          transition: transform 0.2s;
+        }
+
+        .ml-summary-card:hover .ml-summary-arrow {
+          transform: translateX(4px);
+          opacity: 1;
+          color: #8B5CF6;
+        }
+
         /* ── Responsive Mobile ── */
         @media (max-width: 900px) {
           .ml-stats-grid {
@@ -793,6 +1085,14 @@ const MyLeaves = () => {
 
           .ml-btn-primary {
             justify-content: center;
+          }
+
+          .ml-side-panel {
+            max-width: 100%;
+          }
+
+          .ml-history-grid {
+            grid-template-columns: 1fr;
           }
 
           .ml-leave-card {

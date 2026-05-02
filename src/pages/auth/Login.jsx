@@ -177,6 +177,13 @@ const Login = () => {
           margin-bottom: 25px;
         }
 
+        .logo-box img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
         .logo-box {
           width: 70px;
           height: 70px;

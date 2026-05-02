@@ -7,7 +7,7 @@ import { Loader2, Upload, User, ArrowLeft, Check, ChevronDown, ChevronUp, FileTe
 
 const ROLES = ['SuperUser', 'HR', 'Manager', 'Director', 'VP', 'GM', 'Employee', 'Intern'];
 const DEPARTMENTS = ['IT', 'HR', 'Finance', 'Marketing', 'Accounting', 'Operations', 'General Manager'];
-const POSITIONS = ['Software Developer', 'Senior Developer', 'HR Executive', 'Accountant', 'Manager'];
+const POSITIONS = ['Software Developer', 'Senior Developer', 'Android Developer', 'iOS Developer', 'Data Analyst', 'UI/UX Designer', 'HR Executive', 'Accountant', 'Manager', 'Team Lead', 'Project Manager'];
 const GRADUATION_COURSES = ['B.Tech', 'B.E.', 'B.Sc', 'B.Com', 'B.A.', 'BCA', 'Other'];
 const PG_COURSES = ['M.Tech', 'M.E.', 'M.Sc', 'M.Com', 'M.A.', 'MCA', 'MBA', 'Other'];
 const GENDERS = ['Male', 'Female', 'Other'];
@@ -88,6 +88,7 @@ const EditEmployee = () => {
   const [initLoading, setInitLoading] = useState(true);
   const [employeeCode, setEmployeeCode] = useState('');
   const [imagePreview, setImagePreview] = useState(null);
+  const [managementEmployees, setManagementEmployees] = useState([]);
   
   const [form, setForm] = useState({
     name: '', email: '', mobileNumber: '', alternateMobileNumber: '',
@@ -97,7 +98,7 @@ const EditEmployee = () => {
     district: '', state: '', pincode: '',
     experienceType: 'Fresher', totalExperienceYears: '', lastCompanyName: '',
     hasDisease: 'No', diseaseName: '',
-    joiningDate: '', department: '', position: '', reportingManager: '', role: 'Employee', salary: '',
+    joiningDate: '', department: '', position: '', reportingManagers: [], managerIds: [], role: 'Employee', salary: '',
     hscPercent: '', graduationCourse: '', graduationPercent: '', postGraduationCourse: '', postGraduationPercent: '',
     aadhaarNumber: '', panNumber: '',
     accountHolderName: '', bankName: '', accountNumber: '', ifsc: '', branch: '',
@@ -113,7 +114,17 @@ const EditEmployee = () => {
 
   useEffect(() => {
     fetchEmployee();
+    fetchManagement();
   }, [id]);
+
+  const fetchManagement = async () => {
+    try {
+      const { data } = await api.get('/employees/management');
+      setManagementEmployees(data.data);
+    } catch (err) {
+      toast.error('Failed to load management employees');
+    }
+  };
 
   const fetchEmployee = async () => {
     try {
@@ -133,7 +144,10 @@ const EditEmployee = () => {
         experienceType: emp.experienceType || 'Fresher', totalExperienceYears: emp.totalExperienceYears || '', lastCompanyName: emp.lastCompanyName || '',
         hasDisease: emp.hasDisease || 'No', diseaseName: emp.diseaseName || '',
         joiningDate: emp.joiningDate ? emp.joiningDate.split('T')[0] : '', 
-        department: emp.department || '', position: emp.position || '', reportingManager: emp.reportingManager || '', role: emp.role || 'Employee', salary: emp.salary || '',
+        department: emp.department || '', position: emp.position || '', 
+        reportingManagers: emp.reportingManagers || [], 
+        managerIds: emp.managerIds || [], 
+        role: emp.role || 'Employee', salary: emp.salary || '',
         hscPercent: emp.hscPercent || '', graduationCourse: emp.graduationCourse || '', graduationPercent: emp.graduationPercent || '', postGraduationCourse: emp.postGraduationCourse || '', postGraduationPercent: emp.postGraduationPercent || '',
         aadhaarNumber: emp.aadhaarNumber || '', panNumber: emp.panNumber || '',
         accountHolderName: emp.accountHolderName || '', bankName: emp.bankName || '', accountNumber: emp.accountNumber || '', ifsc: emp.ifsc || '', branch: emp.branch || '',
@@ -186,6 +200,21 @@ const EditEmployee = () => {
     }
   };
 
+  const handleManagerChange = (manager) => {
+    setForm(f => {
+      const isSelected = f.managerIds.includes(manager._id);
+      let newIds, newNames;
+      if (isSelected) {
+        newIds = f.managerIds.filter(id => id !== manager._id);
+        newNames = f.reportingManagers.filter(name => name !== manager.name);
+      } else {
+        newIds = [...f.managerIds, manager._id];
+        newNames = [...f.reportingManagers, manager.name];
+      }
+      return { ...f, managerIds: newIds, reportingManagers: newNames };
+    });
+  };
+
   const validate = () => {
     if (!form.name) return 'Name is required';
     if (!form.email) return 'Email is required';
@@ -218,7 +247,13 @@ const EditEmployee = () => {
     try {
       const fd = new FormData();
       Object.entries(form).forEach(([k, v]) => { 
-        if (v && k !== 'sameAsCurrent' && k !== 'confirmPassword') fd.append(k, String(v)); 
+        if (v !== undefined && v !== null && k !== 'sameAsCurrent' && k !== 'confirmPassword') {
+          if (Array.isArray(v)) {
+            fd.append(k, JSON.stringify(v));
+          } else {
+            fd.append(k, String(v)); 
+          }
+        }
       });
       
       Object.entries(files).forEach(([k, file]) => {
@@ -418,8 +453,44 @@ const EditEmployee = () => {
                 {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
               </select>
             </Field>
-            <Field label="Reporting Manager">
-              <input className="input-field" name="reportingManager" value={form.reportingManager} onChange={handleChange} placeholder="Manager Name" />
+            <Field label="Reporting Manager(s)" fullWidth={true}>
+              <div style={{ 
+                display: 'grid', 
+                gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', 
+                gap: '12px', 
+                maxHeight: '200px', 
+                overflowY: 'auto', 
+                padding: '16px', 
+                background: 'var(--color-surface-alt)', 
+                borderRadius: '12px', 
+                border: '1px solid var(--color-border)' 
+              }}>
+                {managementEmployees.map(m => (
+                  <label key={m._id} style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: '10px', 
+                    padding: '8px 12px', 
+                    borderRadius: '8px', 
+                    background: form.managerIds.includes(m._id) ? 'rgba(32, 118, 199, 0.1)' : 'var(--color-surface)', 
+                    border: '1px solid', 
+                    borderColor: form.managerIds.includes(m._id) ? '#2076C7' : 'var(--color-border)', 
+                    cursor: 'pointer', 
+                    transition: 'all 0.2s' 
+                  }}>
+                    <input 
+                      type="checkbox" 
+                      checked={form.managerIds.includes(m._id)} 
+                      onChange={() => handleManagerChange(m)} 
+                      style={{ width: '16px', height: '16px' }}
+                    />
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                      <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-text)' }}>{m.name}</span>
+                      <span style={{ fontSize: '0.7rem', color: 'var(--color-text-tertiary)' }}>{m.role} • {m.employeeCode}</span>
+                    </div>
+                  </label>
+                ))}
+              </div>
             </Field>
             <Field label="Salary (Monthly) *">
               <input className="input-field" type="number" name="salary" value={form.salary} onChange={handleChange} placeholder="₹" />

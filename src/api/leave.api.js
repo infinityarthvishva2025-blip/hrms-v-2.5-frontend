@@ -32,3 +32,6 @@ export const getLeaveStats = () => api.get('/leaves/stats');
 
 // ── LEAVE HISTORY ──
 export const getLeaveHistory = () => api.get('/leaves/history');
+
+// ── COMP-OFF HISTORY ──
+export const getCompOffBalanceHistory = () => api.get('/leaves/comp-off-history');

@@ -3,8 +3,8 @@ import { useAuth } from '../../context/AuthContext';
 import api from '../../api/axios';
 import toast from 'react-hot-toast';
 import * as faceapi from 'face-api.js';
-import { 
-  User, Mail, Phone, MapPin, Briefcase, Hash, 
+import {
+  User, Mail, Phone, MapPin, Briefcase, Hash,
   Shield, Camera, Loader2, Save, KeyRound, Droplet,
   ChevronRight, AlertCircle, ShieldCheck, UserCheck,
   CheckCircle, Smartphone
@@ -17,7 +17,7 @@ const ProfilePage = () => {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
-  
+
   // Forms
   const [savingProfile, setSavingProfile] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
@@ -100,7 +100,7 @@ const ProfilePage = () => {
       const { data } = await api.put('/auth/profile', fd, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
-      
+
       toast.success('Profile updated successfully');
       setProfile({ ...profile, ...data.data });
       await refreshProfile();
@@ -187,7 +187,7 @@ const ProfilePage = () => {
 
       const descriptor = Array.from(detection.descriptor);
       await api.put('/employees/profile/face-descriptor', { faceDescriptor: descriptor });
-      
+
       toast.success("Face ID registered successfully!");
       setShowFaceModal(false);
       stopVideo();
@@ -214,7 +214,7 @@ const ProfilePage = () => {
   return (
     <AppShell>
       <div className="page-wrapper fade-in profile-page-container">
-        
+
         {/* Header Section */}
         <div className="profile-header-area">
           <div>
@@ -224,23 +224,23 @@ const ProfilePage = () => {
         </div>
 
         <div className="profile-content-grid">
-          
+
           {/* LEFT PANEL - Personal Identity & Quick Actions */}
           <div className="profile-left-panel">
-            
+
             {/* 1. Identity Premium Card */}
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               className="premium-card profile-id-card"
             >
               <div className="profile-id-gradient" />
-              
+
               <div className="profile-avatar-section">
                 <div className="avatar-ring">
-                  <img 
-                    src={avatarPreview || `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name)}&background=2076C7&color=fff&size=200`} 
-                    alt="Profile" 
+                  <img
+                    src={avatarPreview || `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name)}&background=2076C7&color=fff&size=200`}
+                    alt="Profile"
                     className="main-avatar-img"
                   />
                   <label className="avatar-upload-btn">
@@ -248,7 +248,7 @@ const ProfilePage = () => {
                     <input type="file" hidden accept="image/*" onChange={handleAvatarSelect} />
                   </label>
                 </div>
-                
+
                 <h2 className="profile-name-text">{profile?.name}</h2>
                 <div className="profile-role-badge">
                   <UserCheck size={14} />
@@ -282,7 +282,7 @@ const ProfilePage = () => {
             </motion.div>
 
             {/* 2. Security Section */}
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1 }}
@@ -292,7 +292,7 @@ const ProfilePage = () => {
                 <div className="title-icon-box purple"><ShieldCheck size={18} /></div>
                 <h3>Security & Access</h3>
               </div>
-              
+
               <form onSubmit={savePassword} className="security-form">
                 <div className="form-group-compact">
                   <label>Current Password</label>
@@ -314,8 +314,13 @@ const ProfilePage = () => {
               </form>
             </motion.div>
 
+
+
+
+
+
             {/* 3. Face ID Card */}
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2 }}
@@ -326,23 +331,42 @@ const ProfilePage = () => {
                 <h3>Face ID Verification</h3>
               </div>
               <p className="section-hint">
-                {profile?.faceDescriptor?.length > 0 
-                  ? "Your biometric face profile is active and secured." 
+                {profile?.faceDescriptor?.length > 0
+                  ? "Your biometric face profile is active and secured."
                   : "Register your face data to enable secure, touchless check-ins."}
               </p>
-              <button 
+
+
+              {!profile?.faceDescriptor || profile.faceDescriptor.length === 0 ? (
+                <button
+                  onClick={handleRegisterFace}
+                  className="btn-primary full-width"
+                >
+                  <Camera size={16} />
+                  <span>Register Face ID</span>
+                </button>
+              ) : null}
+
+
+
+
+
+              {/* <button 
                 onClick={handleRegisterFace} 
                 className={profile?.faceDescriptor?.length > 0 ? "btn-secondary full-width" : "btn-primary full-width"} 
               >
                 {profile?.faceDescriptor?.length > 0 ? <ShieldCheck size={16} /> : <Camera size={16} />}
                 <span>{profile?.faceDescriptor?.length > 0 ? "Update biometric data" : "Register Face ID"}</span>
-              </button>
+              </button> */}
             </motion.div>
+
+
+
           </div>
 
           {/* RIGHT PANEL - Detailed Information */}
           <div className="profile-right-panel">
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               className="premium-card info-card"
@@ -387,7 +411,7 @@ const ProfilePage = () => {
                       <textarea name="currentAddress" value={form.currentAddress} onChange={handleProfileChange} rows={3} placeholder="Full address..." />
                     </div>
                   </div>
-                  
+
                   <div className="form-group col-span-2">
                     <label className="premium-label">Permanent Residence</label>
                     <div className="input-with-icon align-top">
@@ -436,7 +460,7 @@ const ProfilePage = () => {
         <AnimatePresence>
           {showFaceModal && (
             <div className="profile-modal-overlay">
-              <motion.div 
+              <motion.div
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.9 }}
@@ -444,7 +468,7 @@ const ProfilePage = () => {
               >
                 <h2>Register biometrics</h2>
                 <p>Position your face within the frame</p>
-                
+
                 <div className="camera-container">
                   <video ref={videoRef} autoPlay muted playsInline />
                   <div className="camera-mask" />
