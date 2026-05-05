@@ -332,7 +332,7 @@ const AttendancePage = () => {
         new Float32Array(user.faceDescriptor)
       );
 
-      if (dist > 0.6) {
+      if (dist > 0.50) {
         toast.error('Face mismatch. Please try again.');
         setVerifyStatus('fail');
         verifyLockRef.current = false;

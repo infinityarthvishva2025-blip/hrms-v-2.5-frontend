@@ -113,11 +113,11 @@ const ProfilePage = () => {
 
   const savePassword = async (e) => {
     e.preventDefault();
-    if (passForm.newPassword !== passForm.confirmPassword) {
-      toast.error('New passwords do not match');
-      return;
-    }
-    setSavingPassword(true);
+    // if (passForm.newPassword !== passForm.confirmPassword) {
+    //   toast.error('New passwords do not match');
+    //   return;
+    // }
+    // setSavingPassword(true);
     try {
       await api.post('/auth/change-password', {
         currentPassword: passForm.currentPassword,
@@ -351,13 +351,15 @@ const ProfilePage = () => {
 
 
 
-              {/* <button 
+               <button 
                 onClick={handleRegisterFace} 
                 className={profile?.faceDescriptor?.length > 0 ? "btn-secondary full-width" : "btn-primary full-width"} 
               >
                 {profile?.faceDescriptor?.length > 0 ? <ShieldCheck size={16} /> : <Camera size={16} />}
                 <span>{profile?.faceDescriptor?.length > 0 ? "Update biometric data" : "Register Face ID"}</span>
-              </button> */}
+              </button> 
+
+
             </motion.div>
 
 

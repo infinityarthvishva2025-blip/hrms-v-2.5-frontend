@@ -11,7 +11,7 @@ export default defineConfig({
     allowedHosts: ['hrms-v-2-5-frontend.onrender.com'],
     proxy: {
       '/api': {
-        target: 'http://192.168.1.45:5000',
+        target: 'https://hrms-v-2-5-backend.vercel.app/',
         changeOrigin: true,
       },
     },
